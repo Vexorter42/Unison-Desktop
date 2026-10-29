@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Snackbar
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.musichub.desktop.AppGraph
 import com.musichub.ui.screens.FavoritesScreen
 import com.musichub.ui.screens.HomeScreen
 import com.musichub.ui.screens.LibraryScreen
@@ -57,6 +59,8 @@ import com.musichub.ui.screens.TrackListScreen
 import com.musichub.ui.screens.TrackSource
 import com.musichub.ui.theme.LocalPalette
 import com.musichub.ui.theme.UnisonTheme
+import com.musichub.update.Release
+import kotlinx.coroutines.launch
 
 private enum class Tab(val title: String, val icon: ImageVector) {
     HOME("Главная", Icons.Rounded.Home),
@@ -173,5 +177,37 @@ private fun Sidebar(selected: Tab, onSelect: (Tab) -> Unit) {
                 )
             }
         }
+        Spacer(Modifier.weight(1f))
+        UpdateCard()
+    }
+}
+
+/** Карточка «Доступна новая версия» внизу боковой панели. */
+@Composable
+private fun UpdateCard() {
+    val graph = LocalGraph.current
+    val update by graph.updater.state.collectAsState()
+    val release = update.available ?: return
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(glassFill(strong = true)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("Доступна версия ${release.version}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        val progress = update.progress
+        if (progress == null) {
+            PrimaryPill("Обновить", Icons.Rounded.SystemUpdateAlt, onClick = { installUpdate(graph, release) })
+        } else {
+            Text("Скачиваю… ${(progress * 100).toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        update.error?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+/** Скачать установщик, запустить его и закрыться: после установки Unison откроется сам. */
+fun installUpdate(graph: AppGraph, release: Release) {
+    graph.scope.launch {
+        val msi = runCatching { graph.updater.download(release) }.getOrNull() ?: return@launch
+        graph.updater.installAndRestart(msi)
+        graph.requestExit()
     }
 }

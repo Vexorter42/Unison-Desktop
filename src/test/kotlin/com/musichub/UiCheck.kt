@@ -40,6 +40,7 @@ fun main(args: Array<String>) {
     val graph = AppGraph()
     NewPipe.init(NewPipeDownloader(graph.http), Localization("ru", "RU"), ContentCountry("RU"))
     val engine = graph.engine ?: error("VLC не найден")
+    if (graph.updater.current != null) kotlinx.coroutines.runBlocking { graph.updater.check() }
 
     runDesktopComposeUiTest(width = 1320, height = 820) {
         setContent {

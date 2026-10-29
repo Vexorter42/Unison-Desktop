@@ -11,6 +11,7 @@ import com.musichub.playback.Vlc
 import com.musichub.search.SearchRepository
 import com.musichub.soundcloud.SoundCloudApi
 import com.musichub.ui.ImageLoader
+import com.musichub.update.Updater
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
 import com.musichub.youtube.YouTubeApi
@@ -50,6 +51,10 @@ class AppGraph {
     val favorites = Favorites(yandex, youtube, ytMusic)
     val images = ImageLoader(http)
     val browserLogin = BrowserLogin(http)
+    val updater = Updater(http)
+
+    /** Закрыть приложение так же, как крестиком окна (ставит Main). */
+    var requestExit: () -> Unit = {}
 
     private val resolver = StreamResolver(settings, yandex, vk, youtube, soundcloud)
     private val proxy = StreamProxy(streamHttp)

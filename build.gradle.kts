@@ -1,13 +1,14 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
-    id("org.jetbrains.kotlin.jvm")
-    id("org.jetbrains.compose")
-    id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
+    id("org.jetbrains.kotlin.jvm") version "2.3.10"
+    id("org.jetbrains.compose") version "1.12.2"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.3.10"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.10"
 }
 
-val appVersion = "0.1.0"
+// Версию поднимает scripts/release.sh; приложение сравнивает её с последним релизом на GitHub
+val appVersion = "0.1.1"
 
 kotlin {
     jvmToolchain(21)
@@ -34,7 +35,7 @@ dependencies {
 
 /*
  * VLC едет вместе с установщиком: libvlc + только аудио-плагины из установленного VLC.
- * Путь можно переопределить: ./gradlew -PvlcDir=D:/VLC :desktop:packageMsi
+ * Путь можно переопределить: ./gradlew -PvlcDir=D:/VLC packageMsi
  */
 val vlcDir = (findProperty("vlcDir") as String?) ?: "C:/Program Files/VideoLAN/VLC"
 val vlcResources = layout.buildDirectory.dir("vlc-resources")
@@ -58,7 +59,7 @@ val prepareVlc by tasks.registering(Copy::class) {
 compose.desktop {
     application {
         mainClass = "com.musichub.desktop.MainKt"
-        jvmArgs += listOf("-Dfile.encoding=UTF-8", "-Xmx512m")
+        jvmArgs += listOf("-Dfile.encoding=UTF-8", "-Xmx512m", "-Dunison.version=$appVersion")
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe)
@@ -92,7 +93,7 @@ afterEvaluate {
         .configureEach { dependsOn(prepareVlc) }
 }
 
-// Живая проверка без интерфейса: ./gradlew :desktop:smokeCheck -Pquery="Кино Группа крови"
+// Живая проверка без интерфейса: ./gradlew smokeCheck -Pquery="Кино Группа крови"
 tasks.register<JavaExec>("smokeCheck") {
     group = "verification"
     classpath = sourceSets["test"].runtimeClasspath
@@ -109,11 +110,22 @@ tasks.register<JavaExec>("loginCheck") {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
+// Обновление с настоящего GitHub Releases: ./gradlew updateCheck -PfakeVersion=0.1.0 (установка не запускается)
+tasks.register<JavaExec>("updateCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.UpdateCheckKt")
+    args((findProperty("fakeVersion") as String?) ?: "0.0.1")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
 // Проверка интерфейса без окна: поиск → клик по треку → играет, скриншоты в build/ui-check
 tasks.register<JavaExec>("uiCheck") {
     group = "verification"
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("com.musichub.UiCheckKt")
+    // -PfakeVersion=0.1.0 — показать карточку «Доступна новая версия»
+    (findProperty("fakeVersion") as String?)?.let { systemProperty("unison.version", it) }
     args(layout.buildDirectory.dir("ui-check").get().asFile.absolutePath, (findProperty("query") as String?) ?: "Кино Группа крови")
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }

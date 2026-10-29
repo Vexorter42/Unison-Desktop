@@ -54,6 +54,8 @@ import com.musichub.ui.GlassChip
 import com.musichub.ui.LocalGraph
 import com.musichub.ui.PrimaryPill
 import com.musichub.ui.glassFill
+import com.musichub.ui.installUpdate
+import com.musichub.update.Updater
 import com.musichub.ui.onEnter
 import com.musichub.ui.theme.LocalPalette
 import com.musichub.ui.theme.Palettes
@@ -179,6 +181,11 @@ fun SettingsScreen() {
         }
 
         Spacer(Modifier.height(28.dp))
+        Text("Обновления", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        UpdatesSection()
+
+        Spacer(Modifier.height(28.dp))
         Text(
             "Данные приложения: ${AppDirs.root.absolutePath}\nUnison — свободная программа (GPL-3.0), использует NewPipe Extractor и libVLC.",
             fontSize = 12.sp,
@@ -282,6 +289,39 @@ private fun AccountCard(
             }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+    }
+}
+
+@Composable
+private fun UpdatesSection() {
+    val graph = LocalGraph.current
+    val update by graph.updater.state.collectAsState()
+    val current = graph.updater.current
+    Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(glassFill()).padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(if (current != null) "Unison $current" else "Unison (запуск из исходников)", fontSize = 15.sp)
+                val status = when {
+                    current == null -> "Обновления работают только в установленной версии"
+                    update.checking -> "Проверяю…"
+                    update.progress != null -> "Скачиваю обновление… ${(update.progress!! * 100).toInt()}%"
+                    update.available != null -> "Доступна версия ${update.available!!.version}"
+                    update.upToDate -> "Установлена последняя версия"
+                    else -> "Проверяется сама при запуске и раз в 12 часов"
+                }
+                Text(status, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            val release = update.available
+            if (release != null && update.progress == null) {
+                PrimaryPill("Обновить", null, onClick = { installUpdate(graph, release) })
+            }
+            GlassButton("Проверить", onClick = { graph.scope.launch { graph.updater.check() } }, enabled = !update.checking && current != null)
+            GlassButton("Релизы", Icons.AutoMirrored.Rounded.OpenInNew, onClick = { openInBrowser(Updater.RELEASES_URL) })
+        }
+        update.available?.notes?.takeIf { it.isNotBlank() }?.let {
+            Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
+        }
+        update.error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
     }
 }
 

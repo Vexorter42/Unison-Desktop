@@ -28,6 +28,7 @@ import com.musichub.ui.LocalGraph
 import com.musichub.ui.UnisonApp
 import com.musichub.ui.screens.openInBrowser
 import com.musichub.youtube.NewPipeDownloader
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.skia.Image
 import org.schabi.newpipe.extractor.NewPipe
@@ -45,6 +46,14 @@ fun main() {
         MediaKeys(onPlayPause = it::togglePlay, onNext = it::next, onPrevious = it::previous, onStop = { it.togglePlay() })
     }
     mediaKeys?.start()
+    // Как в Android-версии: проверка обновлений при запуске и раз в 12 часов
+    graph.scope.launch {
+        delay(5_000)
+        while (true) {
+            graph.updater.check()
+            delay(12 * 60 * 60_000L)
+        }
+    }
 
     val icon = Thread.currentThread().contextClassLoader.getResourceAsStream("unison.png")?.use {
         BitmapPainter(Image.makeFromEncoded(it.readBytes()).toComposeImageBitmap())
@@ -52,12 +61,14 @@ fun main() {
 
     application {
         val windowState = rememberWindowState(size = DpSize(1320.dp, 860.dp))
+        val exit = {
+            mediaKeys?.stop()
+            engine?.release()
+            exitApplication()
+        }
+        graph.requestExit = exit
         Window(
-            onCloseRequest = {
-                mediaKeys?.stop()
-                engine?.release()
-                exitApplication()
-            },
+            onCloseRequest = exit,
             title = "Unison",
             icon = icon,
             state = windowState,
