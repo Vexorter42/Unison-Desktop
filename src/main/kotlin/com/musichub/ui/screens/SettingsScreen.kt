@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.musichub.data.AppDirs
 import com.musichub.data.AppSettings
 import com.musichub.data.Quality
+import com.musichub.desktop.BrowserLogin
 import com.musichub.ui.GlassButton
 import com.musichub.ui.GlassChip
 import com.musichub.ui.LocalGraph
@@ -57,10 +59,11 @@ import com.musichub.ui.theme.LocalPalette
 import com.musichub.ui.theme.Palettes
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.net.URI
-import java.net.URLDecoder
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -76,12 +79,16 @@ fun SettingsScreen() {
         AccountCard(
             title = "Яндекс Музыка",
             loggedInAs = s.yandexLogin?.let { "Вход выполнен: $it" }.takeIf { s.yandexLoggedIn },
-            hint = "Нажмите «Открыть вход», войдите в Яндекс и разрешите доступ. Браузер перейдёт на страницу, " +
+            hint = "Откроется окно браузера: войдите в Яндекс и нажмите «Разрешить». Окно закроется само.",
+            browserLogin = {
+                graph.browserLogin.login(YandexApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
+            },
+            manualHint = "Откройте вход в своём браузере, войдите и разрешите доступ. Браузер перейдёт на страницу, " +
                 "в адресе которой есть access_token=… — скопируйте этот адрес целиком (или только токен) и вставьте сюда.",
-            loginUrl = YandexApi.OAUTH_URL,
+            manualUrl = YandexApi.OAUTH_URL,
             placeholder = "Адрес страницы после входа или токен",
             onSubmit = { input ->
-                val token = extractToken(input) ?: input
+                val token = BrowserLogin.tokenFromUrl(input) ?: input
                 val (uid, login) = graph.yandex.account(token)
                 graph.settings.update { it.copy(yandexToken = token, yandexUid = uid, yandexLogin = login) }
                 runCatching { graph.yandex.refreshLikes() }
@@ -92,12 +99,15 @@ fun SettingsScreen() {
         AccountCard(
             title = "ВКонтакте",
             loggedInAs = s.vkName?.let { "Вход выполнен: $it" }.takeIf { s.vkLoggedIn },
-            hint = "Вход через Kate Mobile: после входа скопируйте адрес страницы oauth.vk.com/blank.html#access_token=… " +
-                "и вставьте сюда. ВК иногда ограничивает доступ к музыке — тогда поиск в ВК просто пропускается.",
-            loginUrl = VkApi.OAUTH_URL,
+            hint = "Вход через Kate Mobile в окне браузера. ВК иногда ограничивает доступ к музыке — тогда поиск в ВК просто пропускается.",
+            browserLogin = {
+                graph.browserLogin.login(VkApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
+            },
+            manualHint = "Откройте вход в своём браузере, после входа скопируйте адрес страницы oauth.vk.com/blank.html#access_token=… и вставьте сюда.",
+            manualUrl = VkApi.OAUTH_URL,
             placeholder = "Адрес blank.html#access_token=… или токен",
             onSubmit = { input ->
-                val token = extractToken(input) ?: input
+                val token = BrowserLogin.tokenFromUrl(input) ?: input
                 val (id, name) = graph.vk.profile(token)
                 graph.settings.update { it.copy(vkToken = token, vkUserId = id, vkName = name) }
             },
@@ -107,12 +117,24 @@ fun SettingsScreen() {
         AccountCard(
             title = "YouTube Music",
             loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
-            hint = "Необязательно: поиск и воспроизведение YouTube работают без входа. Для своих лайков и плейлистов " +
-                "откройте music.youtube.com в браузере, F12 → Сеть → любой запрос к music.youtube.com → скопируйте заголовок Cookie.",
-            loginUrl = "https://music.youtube.com",
-            placeholder = "Cookie с music.youtube.com",
+            hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
+                "Откроется окно браузера: войдите в Google — окно закроется само, как только откроется YouTube Music.",
+            browserLogin = {
+                graph.browserLogin.login(BrowserLogin.YOUTUBE_LOGIN_URL) {
+                    // Ждём, пока Google вернёт на YouTube: тогда у youtube.com уже есть cookie сессии
+                    if (pageUrls().none { "youtube.com" in it.substringBefore('?') }) return@login null
+                    BrowserLogin.youtubeCookie(cookies()).takeIf { "SAPISID=" in it }
+                }
+            },
+            manualHint = "1. Откройте music.youtube.com в своём браузере и войдите в аккаунт.\n" +
+                "2. Нажмите F12 → вкладка «Сеть» (Network) → обновите страницу (F5).\n" +
+                "3. Правой кнопкой по первому запросу к music.youtube.com → Копировать → «Копировать как cURL (bash)».\n" +
+                "4. Вставьте сюда всё целиком — Unison сам найдёт cookie. Подойдёт и просто значение заголовка Cookie.",
+            manualUrl = "https://music.youtube.com",
+            placeholder = "cURL-запрос или заголовок Cookie",
             onSubmit = { input ->
-                val cookie = input.removePrefix("Cookie:").trim()
+                val cookie = cookieFromInput(input)
+                if ("SAPISID=" !in cookie) error("В cookie нет SAPISID — похоже, скопирован запрос без входа в аккаунт")
                 val name = graph.ytMusic.accountName(cookie)
                 graph.settings.update { it.copy(ytCookie = cookie, ytAccountName = name) }
             },
@@ -124,6 +146,9 @@ fun SettingsScreen() {
         Spacer(Modifier.height(8.dp))
         Toggle("Искать на YouTube", s.searchYoutube) { v -> set { it.copy(searchYoutube = v) } }
         Toggle("Искать во ВКонтакте", s.searchVk) { v -> set { it.copy(searchVk = v) } }
+        Toggle("Искать на SoundCloud", s.searchSoundcloud, note = "Ремиксы, демо и треки, которых нет в других сервисах. Без входа") { v ->
+            set { it.copy(searchSoundcloud = v) }
+        }
         Toggle(
             "Замена, если трек не играет",
             s.fallbackToOthers,
@@ -167,14 +192,20 @@ private fun AccountCard(
     title: String,
     loggedInAs: String?,
     hint: String,
-    loginUrl: String,
+    /** Вход в окне браузера: возвращает то же, что пользователь вставил бы вручную. */
+    browserLogin: suspend () -> String,
+    manualHint: String,
+    manualUrl: String,
     placeholder: String,
     onSubmit: suspend (String) -> Unit,
     onLogout: () -> Unit,
 ) {
     val graph = LocalGraph.current
+    val canUseBrowser = remember { graph.browserLogin.available }
     var input by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var waiting by remember { mutableStateOf<Job?>(null) }
+    var manual by remember { mutableStateOf(!canUseBrowser) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = LocalPalette.current
 
@@ -191,6 +222,15 @@ private fun AccountCard(
         }
     }
 
+    fun loginInBrowser() {
+        error = null
+        waiting = graph.scope.launch {
+            runCatching { onSubmit(browserLogin()) }
+                .onFailure { if (it !is CancellationException) error = it.message ?: it.javaClass.simpleName }
+            waiting = null
+        }
+    }
+
     Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(glassFill()).padding(18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -200,25 +240,46 @@ private fun AccountCard(
             Text(loggedInAs, color = palette.accent, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
             return@Column
         }
-        Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassButton("Открыть вход", Icons.AutoMirrored.Rounded.OpenInNew, onClick = { openInBrowser(loginUrl) })
-            Box(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(glassFill(strong = true)).padding(horizontal = 14.dp, vertical = 11.dp),
-            ) {
-                if (input.isEmpty()) {
-                    Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (canUseBrowser) {
+            Text(hint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, bottom = 12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                val job = waiting
+                if (job == null) {
+                    PrimaryPill("Войти через браузер", Icons.AutoMirrored.Rounded.Login, onClick = { loginInBrowser() })
+                } else {
+                    Text("Окно входа открыто — войдите в аккаунт…", fontSize = 14.sp, color = palette.accent)
+                    GlassButton("Отмена", onClick = { job.cancel() })
                 }
-                BasicTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
-                    modifier = Modifier.fillMaxWidth().onEnter { submit() },
+                Spacer(Modifier.weight(1f))
+                Text(
+                    if (manual) "Скрыть ручной вход" else "Ввести вручную",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { manual = !manual }.padding(6.dp),
                 )
             }
-            PrimaryPill(if (busy) "Проверяю…" else "Войти", null, onClick = { submit() }, enabled = input.isNotBlank() && !busy)
+        }
+        if (manual) {
+            Text(manualHint, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GlassButton("Открыть", Icons.AutoMirrored.Rounded.OpenInNew, onClick = { openInBrowser(manualUrl) })
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(glassFill(strong = true)).padding(horizontal = 14.dp, vertical = 11.dp),
+                ) {
+                    if (input.isEmpty()) {
+                        Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    BasicTextField(
+                        value = input,
+                        onValueChange = { input = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
+                        modifier = Modifier.fillMaxWidth().onEnter { submit() },
+                    )
+                }
+                PrimaryPill(if (busy) "Проверяю…" else "Войти", null, onClick = { submit() }, enabled = input.isNotBlank() && !busy)
+            }
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
     }
@@ -240,16 +301,22 @@ private fun Toggle(title: String, checked: Boolean, note: String? = null, onChan
             colors = SwitchDefaults.colors(
                 checkedTrackColor = LocalPalette.current.b,
                 checkedThumbColor = Color.White,
+                // По умолчанию кружок выключенного берёт outline темы — на стеклянной дорожке его не видно
+                uncheckedThumbColor = Color.White.copy(alpha = 0.7f),
                 uncheckedTrackColor = glassFill(strong = true),
-                uncheckedBorderColor = Color.Transparent,
+                uncheckedBorderColor = Color.White.copy(alpha = 0.22f),
             ),
         )
     }
 }
 
-/** Достаёт access_token из адреса вида …#access_token=XXX&expires_in=… (или null, если его там нет). */
-private fun extractToken(url: String): String? =
-    Regex("""access_token=([^&\s]+)""").find(url)?.groupValues?.get(1)?.let { URLDecoder.decode(it, Charsets.UTF_8) }
+/** Cookie из того, что вставил пользователь: «Копировать как cURL», строка заголовка или само значение. */
+private fun cookieFromInput(input: String): String {
+    val text = input.trim()
+    Regex("""(?i)cookie:\s*([^'"\r\n]+)""").find(text)?.let { return it.groupValues[1].trim() }
+    Regex("""(?:^|\s)-b\s+['"]([^'"]+)['"]""").find(text)?.let { return it.groupValues[1].trim() }
+    return text
+}
 
 fun openInBrowser(url: String) {
     runCatching { Desktop.getDesktop().browse(URI(url)) }

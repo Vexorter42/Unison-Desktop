@@ -3,6 +3,7 @@ package com.musichub.search
 import com.musichub.data.SettingsRepository
 import com.musichub.data.model.Track
 import com.musichub.data.model.TrackRef
+import com.musichub.soundcloud.SoundCloudApi
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
 import com.musichub.youtube.YouTubeApi
@@ -11,11 +12,12 @@ import kotlinx.coroutines.coroutineScope
 
 data class SearchResult(val tracks: List<Track>, val errors: List<String>)
 
-/** Единый поиск: Яндекс + ВК + YouTube, одинаковые треки склеиваются в один. */
+/** Единый поиск: Яндекс + ВК + YouTube + SoundCloud, одинаковые треки склеиваются в один. */
 class SearchRepository(
     private val yandex: YandexApi,
     private val vk: VkApi,
     private val youtube: YouTubeApi,
+    private val soundcloud: SoundCloudApi,
     private val settings: SettingsRepository,
 ) {
     suspend fun search(query: String): SearchResult = coroutineScope {
@@ -23,7 +25,8 @@ class SearchRepository(
         val ya = async { runCatching { yandex.search(query) } }
         val vkRes = async { if (s.searchVk && s.vkLoggedIn) runCatching { vk.search(query) } else Result.success(emptyList()) }
         val yt = async { if (s.searchYoutube) runCatching { youtube.search(query) } else Result.success(emptyList()) }
-        val results = listOf("Яндекс" to ya.await(), "ВК" to vkRes.await(), "YouTube" to yt.await())
+        val sc = async { if (s.searchSoundcloud) runCatching { soundcloud.search(query) } else Result.success(emptyList()) }
+        val results = listOf("Яндекс" to ya.await(), "ВК" to vkRes.await(), "YouTube" to yt.await(), "SoundCloud" to sc.await())
 
         // Порядок важен: у Яндекса лучшие метаданные, поэтому он «главный», остальные — подмешиваются
         var merged = emptyList<Track>()

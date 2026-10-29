@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.runDesktopComposeUiTest
@@ -72,6 +73,13 @@ fun main(args: Array<String>) {
         onNodeWithText("Настройки").performClick()
         waitForIdle()
         shot("5-settings")
+        // Выключенный переключатель должен быть виден (кружок не сливается с дорожкой); настройку возвращаем как было
+        onNodeWithText("Цвета из обложки").performScrollTo().performClick()
+        waitForIdle()
+        shot("6-settings-switch-a")
+        onNodeWithText("Цвета из обложки").performClick()
+        waitForIdle()
+        shot("7-settings-switch-b")
     }
     engine.release()
     kotlin.system.exitProcess(0)

@@ -101,6 +101,14 @@ tasks.register<JavaExec>("smokeCheck") {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
+// Окно входа: открывается Chrome/Edge, токен и cookie читаются, окно закрывается само
+tasks.register<JavaExec>("loginCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.LoginCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
 // Проверка интерфейса без окна: поиск → клик по треку → играет, скриншоты в build/ui-check
 tasks.register<JavaExec>("uiCheck") {
     group = "verification"

@@ -69,6 +69,10 @@ fun main(args: Array<String>): Unit = runBlocking {
     println("Медиаклавиша: пауза ${if (paused) "ок" else "НЕ сработала"}, продолжение ${if (engine.state.value.isPlaying) "ок" else "НЕ сработало"}")
     keys.stop()
     ya.getOrNull()?.firstOrNull { it.source == Source.YANDEX }?.let { t -> playAndCheck("Яндекс", t.key) { engine.playTracks(listOf(t)) } }
+    val sc = runCatching { graph.soundcloud.search(query) }
+    println("SoundCloud: ${sc.getOrNull()?.size ?: "ошибка ${sc.exceptionOrNull()?.message}"}")
+    sc.getOrNull()?.firstOrNull()?.let { t -> playAndCheck("SoundCloud", t.key) { engine.playTracks(listOf(t)) } }
+    println("Склейка с SoundCloud: ${graph.search.search(query).tracks.count { t -> t.alternates.any { it.source == Source.SOUNDCLOUD } }} треков с копией на SC")
     if (s.yandexLoggedIn) playAndCheck("Моя волна", null) { engine.startWave() }
     graph.lyrics.get(engine.state.value.track ?: merged.first())?.let { println("Текст: ${it.synced?.size ?: 0} синхр. строк") }
     engine.release()

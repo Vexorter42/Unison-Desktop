@@ -150,6 +150,7 @@ fun SourceBadge(source: Source, highlighted: Boolean = true) {
         Source.YANDEX -> Color(0xFFFFCC33)
         Source.VK -> Color(0xFF5B9BFF)
         Source.YOUTUBE -> Color(0xFFFF5A5A)
+        Source.SOUNDCLOUD -> Color(0xFFFF8A3D)
         Source.LOCAL -> MaterialTheme.colorScheme.secondary
     }
     Text(

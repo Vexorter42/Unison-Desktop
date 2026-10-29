@@ -9,6 +9,7 @@ import com.musichub.playback.StreamProxy
 import com.musichub.playback.StreamResolver
 import com.musichub.playback.Vlc
 import com.musichub.search.SearchRepository
+import com.musichub.soundcloud.SoundCloudApi
 import com.musichub.ui.ImageLoader
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
@@ -42,13 +43,15 @@ class AppGraph {
     val yandex = YandexApi(http, settings)
     val vk = VkApi(http, settings)
     val youtube = YouTubeApi()
+    val soundcloud = SoundCloudApi()
     val ytMusic = YtMusicApi(http) { settings.current.ytCookie }
     val lyrics = LyricsRepository(http)
-    val search = SearchRepository(yandex, vk, youtube, settings)
+    val search = SearchRepository(yandex, vk, youtube, soundcloud, settings)
     val favorites = Favorites(yandex, youtube, ytMusic)
     val images = ImageLoader(http)
+    val browserLogin = BrowserLogin(http)
 
-    private val resolver = StreamResolver(settings, yandex, vk, youtube)
+    private val resolver = StreamResolver(settings, yandex, vk, youtube, soundcloud)
     private val proxy = StreamProxy(streamHttp)
 
     /** null — не нашёлся VLC: интерфейс покажет, что делать. */

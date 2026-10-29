@@ -3,6 +3,7 @@
 Десктопный клиент Unison на Compose Multiplatform (JVM). Логика сервисов скопирована из Android-версии (`app/`):
 `YandexApi`, `YouTubeApi` / `YtMusicApi` / `NewPipeDownloader`, `VkApi`, `SearchRepository` + `TrackMatcher`,
 `LyricsRepository`, `FallbackDns`, модель `Track`. Позже общее можно вынести в shared-модуль.
+Только на десктопе: SoundCloud (`SoundCloudApi`, тоже через NewPipe Extractor).
 
 Чем заменены Android-зависимости:
 
@@ -13,6 +14,7 @@
 | Coil | `ImageLoader` на OkHttp + Skia |
 | Palette | `CoverColors` (гистограмма оттенков обложки) |
 | MediaSession | медиаклавиши Windows через `RegisterHotKey` (JNA) |
+| WebView для входа | `BrowserLogin`: окно Chrome/Edge с чистым профилем, токен/cookie читаются по DevTools-протоколу |
 
 ## Запуск и сборка
 
@@ -28,5 +30,6 @@ VLC едет внутри установщика: libvlc и аудио-плаг�
 
 ```bash
 ./gradlew :desktop:smokeCheck   # поиск, склейка, YouTube/Яндекс, перемотка, медиаклавиша, текст, Моя волна (если есть вход)
+./gradlew :desktop:loginCheck   # окно входа открывается, токен и cookie читаются, окно закрывается само
 ./gradlew :desktop:uiCheck      # настоящий интерфейс без окна: поиск → клик → играет; скриншоты в desktop/build/ui-check
 ```

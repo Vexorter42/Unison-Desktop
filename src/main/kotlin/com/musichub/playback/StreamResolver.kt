@@ -5,6 +5,7 @@ import com.musichub.data.SettingsRepository
 import com.musichub.data.model.Source
 import com.musichub.data.model.Track
 import com.musichub.search.TrackMatcher
+import com.musichub.soundcloud.SoundCloudApi
 import com.musichub.util.asIo
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
@@ -17,7 +18,7 @@ data class ResolvedStream(val url: String, val viaFallback: Boolean)
 
 /**
  * Получает настоящую ссылку на файл в момент воспроизведения (ссылки сервисов живут недолго).
- * Если свой сервис трек не отдаёт — ищет замену: копии из объединённого поиска, затем Яндекс, затем YouTube.
+ * Если свой сервис трек не отдаёт — ищет замену: копии из объединённого поиска, затем Яндекс, YouTube, SoundCloud.
  * Методы блокирующие — вызывать на IO.
  */
 class StreamResolver(
@@ -25,6 +26,7 @@ class StreamResolver(
     private val yandex: YandexApi,
     private val vk: VkApi,
     private val youtube: YouTubeApi,
+    private val soundcloud: SoundCloudApi,
 ) {
     private class Memo(val stream: ResolvedStream, val at: Long)
 
@@ -53,6 +55,7 @@ class StreamResolver(
         Source.YANDEX -> yandex.streamUrlBlocking(id, q)
         Source.VK -> vk.streamUrlBlocking(id)
         Source.YOUTUBE -> youtube.streamUrlBlocking(id, q)
+        Source.SOUNDCLOUD -> soundcloud.streamUrlBlocking(id, q)
         Source.LOCAL -> java.io.File(id).toURI().toString()
     }
 
@@ -72,7 +75,11 @@ class StreamResolver(
         }
         // 3) Ищем тот же трек на YouTube
         if (track.source != Source.YOUTUBE) {
-            youtube.findMatchBlocking(track)?.let { match -> return youtube.streamUrlBlocking(match.sourceId, q) }
+            runCatching { youtube.findMatchBlocking(track)?.let { youtube.streamUrlBlocking(it.sourceId, q) } }.getOrNull()?.let { return it }
+        }
+        // 4) И на SoundCloud (последним: там много каверов и обрезанных треков Go+)
+        if (track.source != Source.SOUNDCLOUD && settings.current.searchSoundcloud) {
+            runCatching { soundcloud.findMatchBlocking(track)?.let { soundcloud.streamUrlBlocking(it.sourceId, q) } }.getOrNull()?.let { return it }
         }
         val reason = cause.message.orEmpty()
         if ("not a bot" in reason || "LOGIN_REQUIRED" in reason) {

@@ -59,7 +59,8 @@ object TrackMatcher {
 
     /** «Artist - Title (Official Video)» с YouTube → отдельные исполнитель и название. */
     fun splitYoutube(t: Track): Track {
-        if (t.source != Source.YOUTUBE || " - " !in t.title) return t
+        // На YouTube и SoundCloud трек часто залит как «Исполнитель - Название» от имени канала
+        if ((t.source != Source.YOUTUBE && t.source != Source.SOUNDCLOUD) || " - " !in t.title) return t
         val artist = t.title.substringBefore(" - ").trim()
         val title = t.title.substringAfter(" - ").replace(noiseInBrackets, "").trim()
         return t.copy(artists = artist, title = title)

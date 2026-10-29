@@ -28,6 +28,7 @@ data class AppSettings(
     val vkName: String? = null,
     val searchYoutube: Boolean = true,
     val searchVk: Boolean = true,
+    val searchSoundcloud: Boolean = true,
     /** Если трек не играет в своём сервисе — искать замену в других. */
     val fallbackToOthers: Boolean = true,
     val quality: Quality = Quality.HIGH,
