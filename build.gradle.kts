@@ -8,7 +8,7 @@ plugins {
 }
 
 // Версию поднимает scripts/release.sh; приложение сравнивает её с последним релизом на GitHub
-val appVersion = "0.1.1"
+val appVersion = "0.1.2"
 
 kotlin {
     jvmToolchain(21)
