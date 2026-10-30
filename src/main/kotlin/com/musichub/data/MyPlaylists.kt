@@ -26,8 +26,8 @@ class MyPlaylists(private val file: File = File(AppDirs.root, "playlists.json"))
 
     fun get(id: String): MyPlaylist? = _items.value.firstOrNull { it.id == id }
 
-    suspend fun create(name: String, tracks: List<Track>): MyPlaylist {
-        val p = MyPlaylist(UUID.randomUUID().toString(), name, tracks.map { it.copy(mixed = false) }, System.currentTimeMillis())
+    suspend fun create(name: String, tracks: List<Track>, createdAt: Long = System.currentTimeMillis()): MyPlaylist {
+        val p = MyPlaylist(UUID.randomUUID().toString(), name, tracks.map { it.copy(mixed = false) }, createdAt)
         edit { listOf(p) + it }
         return p
     }

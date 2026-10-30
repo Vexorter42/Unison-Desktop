@@ -42,6 +42,16 @@ data class AppSettings(
     val coverTheme: Boolean = true,
     /** Тема Liquid Glass: живой фон, стекло с преломлением, пузырь-индикатор, переключатели-капли. */
     val liquidGlass: Boolean = true,
+    /** Подмешивать похожие треки с YouTube в Мою волну: каждый [mixEvery]-й трек. */
+    val mixYoutubeInWave: Boolean = false,
+    val mixEvery: Int = 4,
+    // Настройки только Android-версии: на ПК не используются, но хранятся, чтобы не терялись в резервной копии
+    val fadeSeconds: Int = 0,
+    val autoCacheMb: Int = 4096,
+    val ytProxyEnabled: Boolean = false,
+    val ytProxyType: String = "SOCKS",
+    val ytProxyHost: String = "127.0.0.1",
+    val ytProxyPort: Int = 10808,
     /** Сессия YouTube Music (cookie после входа) и имя аккаунта. */
     val ytCookie: String? = null,
     val ytAccountName: String? = null,

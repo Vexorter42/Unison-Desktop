@@ -78,6 +78,18 @@ class Favorites(
         return rows.size
     }
 
+    /** Из резервной копии: добавляет недостающие с их датой и отметками отправки. Возвращает, сколько добавлено. */
+    suspend fun restore(rows: List<FavoriteTrack>): Int {
+        var added = 0
+        edit { list ->
+            val known = list.mapTo(HashSet()) { it.key }
+            val fresh = rows.filter { known.add(it.key) }
+            added = fresh.size
+            (list + fresh).sortedByDescending { it.addedAt }
+        }
+        return added
+    }
+
     /** Отправить новые лайки в «Мне нравится» Яндекса. Треки из других сервисов сначала ищутся в Яндексе. */
     suspend fun sendToYandex(onProgress: (done: Int, total: Int) -> Unit): SendResult {
         val pending = items.value.filter { !it.sentYandex }

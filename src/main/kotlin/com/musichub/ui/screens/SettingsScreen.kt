@@ -68,6 +68,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.awt.Desktop
 import java.net.URI
+import java.time.LocalDate
+import java.io.File
+import java.awt.Frame
+import java.awt.FileDialog
+import androidx.compose.material.icons.rounded.Save
+import androidx.compose.material.icons.rounded.Restore
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -183,6 +189,11 @@ fun SettingsScreen() {
         }
 
         Spacer(Modifier.height(28.dp))
+        Text("Резервная копия", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        BackupSection()
+
+        Spacer(Modifier.height(28.dp))
         Text("Обновления", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         UpdatesSection()
@@ -292,6 +303,67 @@ private fun AccountCard(
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
     }
+}
+
+@Composable
+private fun BackupSection() {
+    val graph = LocalGraph.current
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    fun run(block: suspend () -> String) {
+        busy = true
+        status = null
+        error = null
+        graph.scope.launch {
+            runCatching { block() }.onSuccess { status = it }.onFailure { error = it.message ?: it.javaClass.simpleName }
+            busy = false
+        }
+    }
+
+    Column(Modifier.widthIn(max = 760.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(glassFill()).padding(18.dp)) {
+        Text(
+            "Свои плейлисты, «Любимое», статистика прослушиваний и настройки — в один файл. Формат тот же, что у Unison " +
+                "на телефоне: копию можно перенести в обе стороны. Входы в аккаунты в копию не попадают.",
+            fontSize = 13.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            GlassButton("Сохранить копию", Icons.Rounded.Save, enabled = !busy, onClick = {
+                pickBackupFile(save = true)?.let { file ->
+                    run {
+                        val n = graph.backup.export(file)
+                        "Сохранено: ${file.name} ($n плейлистов и треков «Любимого»)"
+                    }
+                }
+            })
+            GlassButton("Восстановить", Icons.Rounded.Restore, enabled = !busy, onClick = {
+                pickBackupFile(save = false)?.let { file ->
+                    run {
+                        val r = graph.backup.restore(file)
+                        "Восстановлено: плейлистов ${r.playlists}, в «Любимое» добавлено ${r.favorites}, прослушиваний ${r.stats}"
+                    }
+                }
+            })
+        }
+        status?.let { Text(it, color = LocalPalette.current.accent, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
+        error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
+    }
+}
+
+/** Системный диалог выбора файла; null — отменили. Имя по умолчанию — как у Android-версии. */
+private fun pickBackupFile(save: Boolean): File? {
+    val dialog = FileDialog(
+        null as Frame?,
+        if (save) "Сохранить резервную копию Unison" else "Открыть резервную копию Unison",
+        if (save) FileDialog.SAVE else FileDialog.LOAD,
+    )
+    dialog.file = if (save) "unison-backup-${LocalDate.now()}.json" else "*.json"
+    dialog.isVisible = true
+    val name = dialog.file ?: return null
+    return File(dialog.directory, if (save && !name.endsWith(".json")) "$name.json" else name)
 }
 
 @Composable

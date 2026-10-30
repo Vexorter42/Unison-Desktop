@@ -1,7 +1,9 @@
 package com.musichub.desktop
 
 import com.musichub.data.Favorites
+import com.musichub.data.Backup
 import com.musichub.data.MyPlaylists
+import com.musichub.data.PlayStats
 import com.musichub.data.SettingsRepository
 import com.musichub.lyrics.LyricsRepository
 import com.musichub.net.FallbackDns
@@ -54,6 +56,8 @@ class AppGraph {
     val favorites = Favorites(yandex, youtube, ytMusic)
     val images = ImageLoader(http)
     val myPlaylists = MyPlaylists()
+    val stats = PlayStats()
+    val backup by lazy { Backup(settings, favorites, myPlaylists, stats) }
     val sources by lazy { Sources(this) }
     val transfer by lazy { TransferRepository(this) }
     val browserLogin = BrowserLogin(http)
@@ -68,7 +72,7 @@ class AppGraph {
     /** null — не нашёлся VLC: интерфейс покажет, что делать. Ленивый: VLC запускается в фоне, уже после показа окна. */
     val engine: PlaybackEngine? by lazy {
         Vlc.createFactory()?.let { factory ->
-            PlaybackEngine(factory, settings, resolver, proxy, yandex, youtube, favorites)
+            PlaybackEngine(factory, settings, resolver, proxy, yandex, youtube, favorites, stats)
         }
     }
 }

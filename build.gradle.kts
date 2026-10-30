@@ -130,6 +130,14 @@ tasks.register<JavaExec>("shotsCheck") {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
+// Резервная копия в формате телефона — на временной папке данных
+tasks.register<JavaExec>("backupCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.BackupCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
 // Перенос плейлистов: разбор ссылок и перенос в «Мои плейлисты» (в сервисах ничего не создаётся)
 tasks.register<JavaExec>("transferCheck") {
     group = "verification"

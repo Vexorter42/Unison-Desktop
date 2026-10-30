@@ -1,6 +1,8 @@
 package com.musichub.playback
 
 import com.musichub.data.Favorites
+import com.musichub.data.PlayEvent
+import com.musichub.data.PlayStats
 import com.musichub.data.SettingsRepository
 import com.musichub.data.model.Source
 import com.musichub.data.model.Track
@@ -61,6 +63,7 @@ class PlaybackEngine(
     private val yandex: YandexApi,
     private val youtube: YouTubeApi,
     private val favorites: Favorites,
+    private val stats: PlayStats,
 ) {
     private val engineThread = Executors.newSingleThreadExecutor { r -> Thread(r, "playback").apply { isDaemon = true } }
         .asCoroutineDispatcher()
@@ -105,6 +108,7 @@ class PlaybackEngine(
 
     private var cur: Track? = null
     private var curPlayedMs = 0L
+    private var curStartedAt = 0L
     private var curFromWave = false
     private var curStation: String? = null
 
@@ -475,6 +479,7 @@ class PlaybackEngine(
         finishCurrent()
         cur = t
         curPlayedMs = 0
+        curStartedAt = System.currentTimeMillis()
         curFromWave = waveMode
         curStation = radioStation
         recentKeys.addLast(t.key)
@@ -493,6 +498,22 @@ class PlaybackEngine(
         val t = cur ?: return
         cur = null
         val played = curPlayedMs
+        // В статистику — как в Android-версии: прослушивания короче 5 секунд не считаются
+        if (played >= 5_000) {
+            val event = PlayEvent(
+                trackKey = t.key,
+                title = t.title,
+                artists = t.artists,
+                source = t.source.name,
+                startedAt = curStartedAt,
+                playedMs = played,
+                durationMs = t.durationMs,
+                skipped = isSkip(t, played),
+                fromWave = curFromWave,
+                trackJson = t.copy(alternates = emptyList(), mixed = false).toJson(),
+            )
+            runCatching { stats.record(event) }
+        }
         val station = curStation
         if (curFromWave && station != null && t.source == Source.YANDEX) {
             val type = if (isSkip(t, played)) "skip" else "trackFinished"
@@ -555,6 +576,7 @@ class PlaybackEngine(
     /** Останавливает плеер на его же потоке, чтобы опрос позиции не обратился к уже освобождённому VLC. */
     fun release() {
         runBlocking(engineThread) {
+            finishCurrent() // дослушанное до закрытия окна тоже попадает в статистику
             scope.coroutineContext[Job]?.cancelAndJoin()
             runCatching { player.controls().stop() }
             runCatching { player.release() }
