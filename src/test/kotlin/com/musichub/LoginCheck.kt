@@ -15,10 +15,8 @@ fun main(): Unit = runBlocking {
         pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl)
     }
     println("Токен из адреса: ${if (token == "test-token-42") "ок" else "НЕ тот: $token"}")
-    val cookie = login.login("https://music.youtube.com/") {
-        if (pageUrls().none { "music.youtube.com" in it }) return@login null
-        BrowserLogin.youtubeCookie(cookies()).takeIf { it.isNotEmpty() }
-    }
+    // Как вход в Google: обычное окно без DevTools, закрывается само по заголовку, cookie — из профиля без окна
+    val cookie = BrowserLogin.youtubeCookie(login.loginAndReadCookies("https://music.youtube.com/", doneTitle = "YouTube Music"))
     println("Cookie youtube.com: ${cookie.split("; ").map { it.substringBefore('=') }}")
     kotlin.system.exitProcess(0)
 }

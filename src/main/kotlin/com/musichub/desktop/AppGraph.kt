@@ -1,6 +1,7 @@
 package com.musichub.desktop
 
 import com.musichub.data.Favorites
+import com.musichub.data.MyPlaylists
 import com.musichub.data.SettingsRepository
 import com.musichub.lyrics.LyricsRepository
 import com.musichub.net.FallbackDns
@@ -10,6 +11,8 @@ import com.musichub.playback.StreamResolver
 import com.musichub.playback.Vlc
 import com.musichub.search.SearchRepository
 import com.musichub.soundcloud.SoundCloudApi
+import com.musichub.transfer.Sources
+import com.musichub.transfer.TransferRepository
 import com.musichub.ui.ImageLoader
 import com.musichub.update.Updater
 import com.musichub.vk.VkApi
@@ -50,6 +53,9 @@ class AppGraph {
     val search = SearchRepository(yandex, vk, youtube, soundcloud, settings)
     val favorites = Favorites(yandex, youtube, ytMusic)
     val images = ImageLoader(http)
+    val myPlaylists = MyPlaylists()
+    val sources by lazy { Sources(this) }
+    val transfer by lazy { TransferRepository(this) }
     val browserLogin = BrowserLogin(http)
     val updater = Updater(http)
 

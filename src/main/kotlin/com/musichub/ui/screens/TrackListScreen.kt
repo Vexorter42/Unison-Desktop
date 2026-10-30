@@ -24,6 +24,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Delete
+import com.musichub.ui.LocalGraph
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +58,16 @@ fun TrackListScreen(source: TrackSource, onBack: () -> Unit) {
         loading = result == null,
         error = result?.exceptionOrNull()?.message,
         onBack = onBack,
+        extraActions = {
+            val delete = source.onDelete ?: return@TrackListLayout
+            val graph = LocalGraph.current
+            GlassButton("Удалить", Icons.Rounded.Delete, onClick = {
+                graph.scope.launch {
+                    delete()
+                    onBack()
+                }
+            })
+        },
     )
 }
 

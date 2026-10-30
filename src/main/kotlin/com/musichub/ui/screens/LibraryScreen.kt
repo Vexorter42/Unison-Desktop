@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,12 +20,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -35,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.musichub.data.model.Track
 import com.musichub.ui.Cover
 import com.musichub.ui.GeneratedCover
+import com.musichub.ui.GlassButton
 import com.musichub.ui.LocalGraph
 import com.musichub.ui.SectionTitle
 import com.musichub.util.tracksCount
@@ -47,15 +51,18 @@ class TrackSource(
     val title: String,
     val subtitle: String,
     val coverUrl: String?,
+    /** Есть у своих плейлистов — кнопка «Удалить» на экране списка. */
+    val onDelete: (suspend () -> Unit)? = null,
     val load: suspend () -> List<Track>,
 )
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun LibraryScreen(open: (TrackSource) -> Unit, openFavorites: () -> Unit, openSettings: () -> Unit) {
+fun LibraryScreen(open: (TrackSource) -> Unit, openFavorites: () -> Unit, openSettings: () -> Unit, openTransfer: () -> Unit) {
     val graph = LocalGraph.current
     val settings by graph.settings.flow.collectAsState()
     val favorites by graph.favorites.items.collectAsState()
+    val myPlaylists by graph.myPlaylists.items.collectAsState()
     val yaPlaylists by produceState<Result<List<YaPlaylist>>?>(null, settings.yandexUid) {
         value = if (settings.yandexLoggedIn) runCatching { graph.yandex.playlists() } else null
     }
@@ -79,6 +86,32 @@ fun LibraryScreen(open: (TrackSource) -> Unit, openFavorites: () -> Unit, openSe
                 Tile("Понравившиеся", "YouTube Music", onClick = {
                     open(TrackSource("yt:liked", "Понравившиеся", "YouTube Music", null) { graph.ytMusic.liked() })
                 }) { GeneratedCover(Icons.Rounded.ThumbUp, Color(0xFFFF4D4D), Modifier.fillMaxSize()) }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle("Мои плейлисты", Modifier.weight(1f))
+            GlassButton("Перенести плейлист", Icons.Rounded.SwapHoriz, onClick = openTransfer)
+        }
+        if (myPlaylists.isEmpty()) {
+            Text(
+                "Здесь будут плейлисты из любых сервисов вместе — перенесите сюда плейлист Яндекса, YouTube, SoundCloud или ВК.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+            )
+        } else {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                myPlaylists.forEach { p ->
+                    val cover = p.tracks.firstOrNull()?.coverUrl
+                    Tile(p.name, tracksCount(p.tracks.size), onClick = {
+                        open(
+                            TrackSource("my:${p.id}", p.name, "Мой плейлист", cover, onDelete = { graph.myPlaylists.delete(p.id) }) {
+                                graph.myPlaylists.get(p.id)?.tracks.orEmpty()
+                            },
+                        )
+                    }) { Cover(cover, modifier = Modifier.fillMaxSize(), corner = 14.dp) }
+                }
             }
         }
 

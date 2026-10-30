@@ -84,11 +84,12 @@ fun glassFill(strong: Boolean = false): Color = Color.White.copy(alpha = if (str
 
 /** Размытая обложка на весь фон + затемнение, чтобы текст читался. */
 @Composable
-fun CoverBackdrop(url: String?, modifier: Modifier = Modifier) {
+fun CoverBackdrop(url: String?, modifier: Modifier = Modifier, overAmbient: Boolean = false) {
     val bg = MaterialTheme.colorScheme.background
     val palette = LocalPalette.current
     val image = rememberImage(hiResCover(url))
-    Box(modifier.fillMaxSize().background(bg)) {
+    // Поверх живого фона Liquid Glass — без своей заливки и с лёгким затемнением, чтобы пятна было видно
+    Box(modifier.fillMaxSize().then(if (overAmbient) Modifier else Modifier.background(bg))) {
         // Мягкое цветное свечение из палитры — даже когда обложки нет
         Box(
             Modifier.fillMaxSize().background(
@@ -106,7 +107,10 @@ fun CoverBackdrop(url: String?, modifier: Modifier = Modifier) {
         }
         Box(
             Modifier.fillMaxSize().background(
-                Brush.verticalGradient(listOf(bg.copy(alpha = 0.25f), bg.copy(alpha = 0.6f), bg.copy(alpha = 0.92f))),
+                Brush.verticalGradient(
+                    if (overAmbient) listOf(bg.copy(alpha = 0.05f), bg.copy(alpha = 0.25f), bg.copy(alpha = 0.55f))
+                    else listOf(bg.copy(alpha = 0.25f), bg.copy(alpha = 0.6f), bg.copy(alpha = 0.92f)),
+                ),
             ),
         )
     }

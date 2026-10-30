@@ -81,6 +81,9 @@ fun main(args: Array<String>) {
         onNodeWithText("Цвета из обложки").performClick()
         waitForIdle()
         shot("7-settings-switch-b")
+        onNodeWithText("Перенос").performClick()
+        waitUntil(timeoutMillis = 20_000) { onAllNodesWithText("Любимое Unison").fetchSemanticsNodes().isNotEmpty() }
+        shot("8-transfer")
     }
     engine.release()
     kotlin.system.exitProcess(0)

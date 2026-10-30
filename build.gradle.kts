@@ -110,6 +110,23 @@ tasks.register<JavaExec>("loginCheck") {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
+// Скриншоты экранов без звука и без изменения настроек: build/shots
+tasks.register<JavaExec>("shotsCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.ShotsCheckKt")
+    args(listOfNotNull(layout.buildDirectory.dir("shots").get().asFile.absolutePath, findProperty("palette") as String?))
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
+// Перенос плейлистов: разбор ссылок и перенос в «Мои плейлисты» (в сервисах ничего не создаётся)
+tasks.register<JavaExec>("transferCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.TransferCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
 // Обновление с настоящего GitHub Releases: ./gradlew updateCheck -PfakeVersion=0.1.0 (установка не запускается)
 tasks.register<JavaExec>("updateCheck") {
     group = "verification"

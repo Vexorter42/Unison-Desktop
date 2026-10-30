@@ -54,6 +54,8 @@ import com.musichub.ui.GlassChip
 import com.musichub.ui.LocalGraph
 import com.musichub.ui.PrimaryPill
 import com.musichub.ui.glassFill
+import com.musichub.ui.liquid.LiquidSwitch
+import com.musichub.ui.liquid.LocalLiquidGlass
 import com.musichub.ui.installUpdate
 import com.musichub.update.Updater
 import com.musichub.ui.onEnter
@@ -120,13 +122,10 @@ fun SettingsScreen() {
             title = "YouTube Music",
             loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
             hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
-                "Откроется окно браузера: войдите в Google — окно закроется само, как только откроется YouTube Music.",
+                "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
             browserLogin = {
-                graph.browserLogin.login(BrowserLogin.YOUTUBE_LOGIN_URL) {
-                    // Ждём, пока Google вернёт на YouTube: тогда у youtube.com уже есть cookie сессии
-                    if (pageUrls().none { "youtube.com" in it.substringBefore('?') }) return@login null
-                    BrowserLogin.youtubeCookie(cookies()).takeIf { "SAPISID=" in it }
-                }
+                val all = graph.browserLogin.loginAndReadCookies(BrowserLogin.YOUTUBE_LOGIN_URL, doneTitle = "YouTube Music")
+                BrowserLogin.youtubeCookie(all).also { if ("SAPISID=" !in it) error("Вход в Google не завершён — попробуйте ещё раз") }
             },
             manualHint = "1. Откройте music.youtube.com в своём браузере и войдите в аккаунт.\n" +
                 "2. Нажмите F12 → вкладка «Сеть» (Network) → обновите страницу (F5).\n" +
@@ -166,6 +165,9 @@ fun SettingsScreen() {
         Spacer(Modifier.height(28.dp))
         Text("Оформление", fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
+        Toggle("Liquid Glass", s.liquidGlass, note = "Стекло с преломлением, живой фон и пузырь-индикатор — как в Android-версии") { v ->
+            set { it.copy(liquidGlass = v) }
+        }
         Toggle("Цвета из обложки", s.coverTheme, note = "Палитра окна берётся из обложки текущего трека") { v -> set { it.copy(coverTheme = v) } }
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -334,6 +336,10 @@ private fun Toggle(title: String, checked: Boolean, note: String? = null, onChan
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 15.sp)
             if (note != null) Text(note, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (LocalLiquidGlass.current) {
+            LiquidSwitch(checked, onChange)
+            return@Row
         }
         Switch(
             checked = checked,

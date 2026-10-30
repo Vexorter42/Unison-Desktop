@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.musichub.ui.liquid.panelSurface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -79,9 +80,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier
         modifier
             .fillMaxWidth()
             .height(92.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF16161B).copy(alpha = 0.72f))
-            .background(glassFill())
+            .panelSurface(0.72f)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

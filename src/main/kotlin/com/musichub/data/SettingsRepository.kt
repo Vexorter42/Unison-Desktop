@@ -40,6 +40,8 @@ data class AppSettings(
     val palette: Int = 0,
     /** Цвета экрана берутся из обложки текущего трека (поверх выбранной палитры). */
     val coverTheme: Boolean = true,
+    /** Тема Liquid Glass: живой фон, стекло с преломлением, пузырь-индикатор, переключатели-капли. */
+    val liquidGlass: Boolean = true,
     /** Сессия YouTube Music (cookie после входа) и имя аккаунта. */
     val ytCookie: String? = null,
     val ytAccountName: String? = null,
@@ -52,7 +54,10 @@ data class AppSettings(
 /** Папка данных приложения: %APPDATA%\Unison (на других ОС — ~/.unison). */
 object AppDirs {
     val root: File by lazy {
-        val base = System.getenv("APPDATA")?.let { File(it, "Unison") } ?: File(System.getProperty("user.home"), ".unison")
+        // -Dunison.dataDir — временная папка для проверок, чтобы не трогать настоящие настройки
+        val base = System.getProperty("unison.dataDir")?.let(::File)
+            ?: System.getenv("APPDATA")?.let { File(it, "Unison") }
+            ?: File(System.getProperty("user.home"), ".unison")
         base.apply { mkdirs() }
     }
 }

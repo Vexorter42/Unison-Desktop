@@ -7,6 +7,8 @@ import com.musichub.search.TrackMatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.schabi.newpipe.extractor.InfoItem
+import org.schabi.newpipe.extractor.Page
+import org.schabi.newpipe.extractor.playlist.PlaylistInfo
 import org.schabi.newpipe.extractor.ServiceList
 import org.schabi.newpipe.extractor.exceptions.SoundCloudGoPlusContentException
 import org.schabi.newpipe.extractor.services.soundcloud.linkHandler.SoundcloudSearchQueryHandlerFactory
@@ -51,6 +53,20 @@ class SoundCloudApi {
             .let { if (quality == Quality.LOW) it.firstOrNull() else it.lastOrNull() }
             ?: throw IOException("SoundCloud: нет аудиопотока")
         return pick.content
+    }
+
+    /** Плейлист («автор/sets/название»): название и треки. */
+    suspend fun playlist(path: String, limit: Int = 1000): Pair<String, List<Track>> = io {
+        val url = "$BASE/$path"
+        val info = PlaylistInfo.getInfo(service, url)
+        val items = info.relatedItems.toMutableList<InfoItem>()
+        var next: Page? = info.nextPage
+        while (Page.isValid(next) && items.size < limit) {
+            val page = PlaylistInfo.getMoreItems(service, url, next)
+            items += page.items
+            next = page.nextPage
+        }
+        info.name to items.mapNotNull { it.toTrack() }
     }
 
     private fun InfoItem.toTrack(): Track? {

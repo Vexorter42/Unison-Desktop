@@ -28,6 +28,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.musichub.ui.liquid.panelSurface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -41,9 +42,7 @@ fun GlassPanel(title: String, modifier: Modifier = Modifier, content: @Composabl
     Column(
         modifier
             .fillMaxHeight()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF16161B).copy(alpha = 0.55f))
-            .background(glassFill())
+            .panelSurface(0.55f)
             .padding(16.dp),
     ) {
         Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.padding(bottom = 12.dp))

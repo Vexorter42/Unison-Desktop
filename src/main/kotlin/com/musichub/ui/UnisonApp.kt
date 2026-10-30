@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +43,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import kotlin.math.abs
+import com.musichub.ui.liquid.rememberLiquidBackdrop
+import com.musichub.ui.liquid.backdropSource
+import com.musichub.ui.liquid.LocalLiquidGlass
+import com.musichub.ui.liquid.LocalBackdrop
+import com.musichub.ui.liquid.AmbientBackground
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.border
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
+import com.musichub.ui.liquid.panelSurface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,6 +73,7 @@ import com.musichub.ui.screens.SearchState
 import com.musichub.ui.screens.SettingsScreen
 import com.musichub.ui.screens.TrackListScreen
 import com.musichub.ui.screens.TrackSource
+import com.musichub.ui.screens.TransferScreen
 import com.musichub.ui.theme.LocalPalette
 import com.musichub.ui.theme.UnisonTheme
 import com.musichub.update.Release
@@ -67,6 +84,7 @@ private enum class Tab(val title: String, val icon: ImageVector) {
     SEARCH("Поиск", Icons.Rounded.Search),
     LIBRARY("Медиатека", Icons.Rounded.LibraryMusic),
     FAVORITES("Любимое", Icons.Rounded.Favorite),
+    TRANSFER("Перенос", Icons.Rounded.SwapHoriz),
     SETTINGS("Настройки", Icons.Rounded.Settings),
 }
 
@@ -85,9 +103,18 @@ fun UnisonApp() {
         engine.messages.collect { snackbar.showSnackbar(it) }
     }
 
+    val settings by LocalGraph.current.settings.flow.collectAsState()
+    val liquid = settings.liquidGlass
+    val backdrop = rememberLiquidBackdrop()
+
     UnisonTheme(coverUrl = state.track?.coverUrl) {
         Box(Modifier.fillMaxSize()) {
-            CoverBackdrop(state.track?.coverUrl)
+            // Фон окна; в теме Liquid Glass он же — то, что панели размывают и преломляют
+            Box(Modifier.fillMaxSize().then(if (liquid) Modifier.backdropSource(backdrop) else Modifier)) {
+                if (liquid) AmbientBackground()
+                CoverBackdrop(state.track?.coverUrl, overAmbient = liquid)
+            }
+            CompositionLocalProvider(LocalLiquidGlass provides liquid, LocalBackdrop provides backdrop.takeIf { liquid }) {
             Column(Modifier.fillMaxSize().padding(12.dp)) {
                 Row(Modifier.weight(1f).fillMaxWidth()) {
                     Sidebar(tab) {
@@ -105,8 +132,10 @@ fun UnisonApp() {
                                     open = { opened = it },
                                     openFavorites = { tab = Tab.FAVORITES },
                                     openSettings = { tab = Tab.SETTINGS },
+                                    openTransfer = { tab = Tab.TRANSFER },
                                 )
                                 t == Tab.FAVORITES -> FavoritesScreen(onBack = null)
+                                t == Tab.TRANSFER -> TransferScreen()
                                 else -> SettingsScreen()
                             }
                         }
@@ -124,6 +153,7 @@ fun UnisonApp() {
                 Spacer(Modifier.height(12.dp))
                 PlayerBar(panel, onPanel = { panel = it })
             }
+            }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 116.dp)) { data ->
                 Snackbar(data, containerColor = Color(0xFF26262E), contentColor = Color.White, shape = RoundedCornerShape(14.dp))
             }
@@ -138,9 +168,7 @@ private fun Sidebar(selected: Tab, onSelect: (Tab) -> Unit) {
         Modifier
             .width(220.dp)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF16161B).copy(alpha = 0.55f))
-            .background(glassFill())
+            .panelSurface(0.55f)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -149,6 +177,11 @@ private fun Sidebar(selected: Tab, onSelect: (Tab) -> Unit) {
             Spacer(Modifier.width(10.dp))
             Text("Unison", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
         }
+        val liquid = LocalLiquidGlass.current
+        var rowHeight by remember { mutableStateOf(0) }
+        Box {
+        if (liquid && rowHeight > 0) SelectionBubble(Tab.entries.indexOf(selected), rowHeight)
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Tab.entries.forEach { t ->
             val hover = remember { MutableInteractionSource() }
             val hovered by hover.collectIsHoveredAsState()
@@ -156,8 +189,15 @@ private fun Sidebar(selected: Tab, onSelect: (Tab) -> Unit) {
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .onSizeChanged { rowHeight = it.height }
                     .clip(RoundedCornerShape(12.dp))
-                    .background(if (isSelected) glassFill(strong = true) else if (hovered) glassFill() else Color.Transparent)
+                    .background(
+                        when {
+                            isSelected && !liquid -> glassFill(strong = true)
+                            hovered && !isSelected -> glassFill()
+                            else -> Color.Transparent
+                        },
+                    )
                     .hoverable(hover)
                     .clickable { onSelect(t) }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -177,9 +217,40 @@ private fun Sidebar(selected: Tab, onSelect: (Tab) -> Unit) {
                 )
             }
         }
+        }
+        }
         Spacer(Modifier.weight(1f))
         UpdateCard()
     }
+}
+
+/**
+ * Пузырь выделения в теме Liquid Glass: перетекает к выбранной вкладке на пружине,
+ * в полёте вытягивается по ходу движения и сужается, на месте «оседает».
+ */
+@Composable
+private fun SelectionBubble(index: Int, rowHeight: Int) {
+    val density = LocalDensity.current
+    val gap = with(density) { 4.dp.toPx() }
+    val target = index * (rowHeight + gap)
+    val y = remember { Animatable(target) }
+    LaunchedEffect(target) { y.animateTo(target, spring(dampingRatio = 0.62f, stiffness = 320f)) }
+    val speed = (abs(y.velocity) / 3000f).coerceAtMost(0.35f)
+    val palette = LocalPalette.current
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(with(density) { rowHeight.toDp() })
+            .graphicsLayer {
+                translationY = y.value
+                scaleY = 1f + speed
+                scaleX = 1f - speed * 0.25f
+            }
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.20f), Color.White.copy(alpha = 0.08f))))
+            .background(palette.accent.copy(alpha = 0.08f))
+            .border(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.08f))), RoundedCornerShape(14.dp)),
+    )
 }
 
 /** Карточка «Доступна новая версия» внизу боковой панели. */
