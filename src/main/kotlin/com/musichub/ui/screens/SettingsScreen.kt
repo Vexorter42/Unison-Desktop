@@ -157,6 +157,22 @@ fun SettingsScreen() {
             set { it.copy(searchSoundcloud = v) }
         }
         Toggle(
+            "Подмешивать YouTube в Мою волну",
+            s.mixYoutubeInWave,
+            note = "Похожие треки с YouTube между треками волны — как в Android-версии",
+        ) { v -> set { it.copy(mixYoutubeInWave = v) } }
+        if (s.mixYoutubeInWave) {
+            Row(
+                Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Каждый", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                listOf(2, 3, 4, 5, 6, 8, 10).forEach { n -> GlassChip("$n-й", s.mixEvery == n) { set { it.copy(mixEvery = n) } } }
+                Text("трек", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Toggle(
             "Замена, если трек не играет",
             s.fallbackToOthers,
             note = "Ищет тот же трек в другом сервисе: например, YouTube просит «подтвердить, что вы не бот» — играет из Яндекса",

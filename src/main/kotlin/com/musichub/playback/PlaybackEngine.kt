@@ -109,6 +109,8 @@ class PlaybackEngine(
     private var cur: Track? = null
     private var curPlayedMs = 0L
     private var curStartedAt = 0L
+    /** Счётчик треков волны — для подмешивания YouTube через каждые mixEvery. */
+    private var waveCounter = 0
     private var curFromWave = false
     private var curStation: String? = null
 
@@ -297,6 +299,7 @@ class PlaybackEngine(
                 beginRadio(station, title, batch.batchId)
                 scope.launch { yandex.waveFeedback("radioStarted", batch.batchId, station = station) }
                 setRadioQueue(listOfNotNull(seed) + batch.tracks.filter { it.key != seed?.key })
+                if (station == YandexApi.WAVE) scheduleMix(batch.tracks)
             } catch (e: Exception) {
                 _messages.tryEmit("Не удалось запустить радио: ${e.message}")
             }
@@ -321,6 +324,7 @@ class PlaybackEngine(
     }
 
     private fun beginRadio(station: String?, title: String, batchId: String?) {
+        waveCounter = 0
         waveMode = true
         radioStation = station
         radioTitle = title
@@ -365,12 +369,39 @@ class PlaybackEngine(
                 queue = queue + add
                 order = order + add.indices.map { base + it }
                 publish()
+                if (station == YandexApi.WAVE) scheduleMix(add)
             } catch (e: Exception) {
                 _messages.tryEmit("Радио: ${e.message}")
             } finally {
                 waveLoading = false
             }
         }
+    }
+
+    /** Подмешивание YouTube в волну, как в Android-версии: после каждого N-го трека — похожий трек с YouTube. */
+    private fun scheduleMix(batch: List<Track>) {
+        val s = settings.current
+        if (!s.mixYoutubeInWave) return
+        val seeds = batch.filter { ++waveCounter % s.mixEvery.coerceAtLeast(2) == 0 }
+        if (seeds.isEmpty()) return
+        scope.launch {
+            for (seed in seeds) {
+                val extra = runCatching { youtubeNeighbour(seed) }.getOrNull() ?: continue
+                if (!waveMode) return@launch
+                val seedIndex = queue.indexOfFirst { it.key == seed.key }
+                val at = order.indexOf(seedIndex)
+                if (seedIndex < 0 || at < pos) continue
+                queue = queue + extra.copy(mixed = true)
+                order = order.toMutableList().apply { add(at + 1, queue.size - 1) }
+                publish()
+            }
+        }
+    }
+
+    private suspend fun youtubeNeighbour(seed: Track): Track? {
+        val match = youtube.findMatch(seed) ?: return null
+        val skip = queue.mapTo(HashSet()) { it.key } + recentKeys
+        return youtube.related(match.sourceId).firstOrNull { it.key !in skip }
     }
 
     private suspend fun findOnYandex(t: Track): Track? {

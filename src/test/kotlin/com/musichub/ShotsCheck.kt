@@ -68,6 +68,14 @@ fun main(args: Array<String>) {
         onNodeWithText("Liquid Glass").performScrollTo()
         waitForIdle()
         shot("4-settings")
+        if (tempData != null) {
+            // Сворачивание меню меняет настройку — только на временной копии
+            onNodeWithText("Главная").performClick()
+            onNodeWithText("Свернуть").performClick()
+            mainClock.advanceTimeBy(800)
+            waitForIdle()
+            shot("5-collapsed")
+        }
     }
     engine.release()
     tempData?.deleteRecursively()

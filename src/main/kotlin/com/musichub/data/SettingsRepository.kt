@@ -40,6 +40,8 @@ data class AppSettings(
     val palette: Int = 0,
     /** Цвета экрана берутся из обложки текущего трека (поверх выбранной палитры). */
     val coverTheme: Boolean = true,
+    /** Боковое меню свёрнуто до иконок. */
+    val sidebarCollapsed: Boolean = false,
     /** Тема Liquid Glass: живой фон, стекло с преломлением, пузырь-индикатор, переключатели-капли. */
     val liquidGlass: Boolean = true,
     /** Подмешивать похожие треки с YouTube в Мою волну: каждый [mixEvery]-й трек. */
