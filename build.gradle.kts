@@ -41,7 +41,8 @@ val vlcDir = (findProperty("vlcDir") as String?) ?: "C:/Program Files/VideoLAN/V
 val vlcResources = layout.buildDirectory.dir("vlc-resources")
 val prepareVlc by tasks.registering(Copy::class) {
     from(vlcDir) {
-        include("libvlc.dll", "libvlccore.dll")
+        // vlc-cache-gen строит кеш плагинов уже на компьютере пользователя (см. Vlc.ensurePluginCache)
+        include("libvlc.dll", "libvlccore.dll", "vlc-cache-gen.exe")
         include(
             "plugins/access/**", "plugins/audio_filter/**", "plugins/audio_mixer/**", "plugins/audio_output/**",
             "plugins/codec/**", "plugins/demux/**", "plugins/packetizer/**", "plugins/stream_filter/**",
@@ -108,6 +109,16 @@ tasks.register<JavaExec>("loginCheck") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("com.musichub.LoginCheckKt")
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
+// Время запуска: VLC из той же папки, что в установщике (build/vlc-resources/windows)
+tasks.register<JavaExec>("startupCheck") {
+    group = "verification"
+    dependsOn(prepareVlc)
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.StartupCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+    systemProperty("compose.application.resources.dir", vlcResources.get().dir("windows").asFile.absolutePath)
 }
 
 // Скриншоты экранов без звука и без изменения настроек: build/shots

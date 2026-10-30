@@ -10,6 +10,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.musichub.playback.PlaybackEngine
+import com.musichub.playback.Vlc
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -41,11 +51,6 @@ fun main() {
     if (graph.settings.current.yandexLoggedIn) {
         graph.scope.launch { runCatching { graph.yandex.refreshLikes() } }
     }
-    val engine = graph.engine
-    val mediaKeys = engine?.let {
-        MediaKeys(onPlayPause = it::togglePlay, onNext = it::next, onPrevious = it::previous, onStop = { it.togglePlay() })
-    }
-    mediaKeys?.start()
     // Как в Android-версии: проверка обновлений при запуске и раз в 12 часов
     graph.scope.launch {
         delay(5_000)
@@ -61,6 +66,19 @@ fun main() {
 
     application {
         val windowState = rememberWindowState(size = DpSize(1320.dp, 860.dp))
+        // Окно показывается сразу, а VLC (до секунды и больше на холодном диске) запускается в фоне
+        val load by produceState<EngineLoad>(EngineLoad.Loading) {
+            value = withContext(Dispatchers.IO) { graph.engine }?.let { EngineLoad.Ready(it) } ?: EngineLoad.Missing
+        }
+        val engine = (load as? EngineLoad.Ready)?.engine
+        var mediaKeys by remember { mutableStateOf<MediaKeys?>(null) }
+        LaunchedEffect(engine) {
+            if (engine == null) return@LaunchedEffect
+            mediaKeys = MediaKeys(onPlayPause = engine::togglePlay, onNext = engine::next, onPrevious = engine::previous, onStop = { engine.togglePlay() })
+                .also { it.start() }
+            // Кеш плагинов VLC строится на этом компьютере — следующие запуски не перебирают все DLL
+            withContext(Dispatchers.IO) { Vlc.ensurePluginCache(graph.updater.current) }
+        }
         val exit = {
             mediaKeys?.stop()
             engine?.release()
@@ -76,13 +94,27 @@ fun main() {
             window.minimumSize = java.awt.Dimension(1000, 640)
             LaunchedEffect(Unit) { WindowsTitleBar.useDarkMode(window) }
             CompositionLocalProvider(LocalGraph provides graph) {
-                if (engine != null) {
-                    CompositionLocalProvider(LocalEngine provides engine) { UnisonApp() }
-                } else {
-                    NoVlcScreen()
+                when (val l = load) {
+                    EngineLoad.Loading -> Splash()
+                    EngineLoad.Missing -> NoVlcScreen()
+                    is EngineLoad.Ready -> CompositionLocalProvider(LocalEngine provides l.engine) { UnisonApp() }
                 }
             }
         }
+    }
+}
+
+private sealed interface EngineLoad {
+    data object Loading : EngineLoad
+    data object Missing : EngineLoad
+    data class Ready(val engine: PlaybackEngine) : EngineLoad
+}
+
+/** Пока запускается VLC: тот же тёмный фон, что у приложения, и название. */
+@androidx.compose.runtime.Composable
+private fun Splash() {
+    Box(Modifier.fillMaxSize().background(Color(0xFF0D0D10)), contentAlignment = Alignment.Center) {
+        Text("Unison", fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Color.White.copy(alpha = 0.85f))
     }
 }
 

@@ -65,8 +65,10 @@ class AppGraph {
     private val resolver = StreamResolver(settings, yandex, vk, youtube, soundcloud)
     private val proxy = StreamProxy(streamHttp)
 
-    /** null — не нашёлся VLC: интерфейс покажет, что делать. */
-    val engine: PlaybackEngine? = Vlc.createFactory()?.let { factory ->
-        PlaybackEngine(factory, settings, resolver, proxy, yandex, youtube, favorites)
+    /** null — не нашёлся VLC: интерфейс покажет, что делать. Ленивый: VLC запускается в фоне, уже после показа окна. */
+    val engine: PlaybackEngine? by lazy {
+        Vlc.createFactory()?.let { factory ->
+            PlaybackEngine(factory, settings, resolver, proxy, yandex, youtube, favorites)
+        }
     }
 }
