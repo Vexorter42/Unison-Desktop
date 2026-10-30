@@ -71,6 +71,24 @@ class PlaybackEngine(
 
     private val player: MediaPlayer = vlcFactory.mediaPlayers().newMediaPlayer()
 
+    /**
+     * Звук через приложение, чтобы сфера Моей волны видела басы. Включается при запуске, если включена
+     * «Живая сфера»; иначе (или если звуковое устройство не открылось) звук выводит сам VLC.
+     */
+    private val bassMeter: BassMeter? = if (settings.current.sphereMotion) BassMeter.open(settings.current.volume) else null
+
+    /** Сила басов 0..1 (0, если звук выводит VLC). */
+    val bassLevel: Float get() = bassMeter?.level ?: 0f
+
+    /** Сколько блоков звука прошло через приложение (для проверки). */
+    val audioBlocks: Long get() = bassMeter?.blocks ?: 0
+
+    /** Пик сигнала, ушедшего в звуковую карту (для проверки). */
+    val audioOutputPeak: Int get() = bassMeter?.outputPeak ?: 0
+
+    /** Сфера может реагировать на басы — звук идёт через приложение. */
+    val bassAvailable: Boolean get() = bassMeter != null
+
     private val _state = MutableStateFlow(PlayerState(volume = settings.current.volume))
     val state: StateFlow<PlayerState> = _state.asStateFlow()
 
@@ -117,6 +135,8 @@ class PlaybackEngine(
     private val current: Track? get() = order.getOrNull(pos)?.let { queue.getOrNull(it) }
 
     init {
+        // Громкость применяет BassMeter (true — VLC передаёт её в setVolume, а не режет сэмплы сам)
+        bassMeter?.let { player.audio().callback(BassMeter.VLC_FORMAT, BassMeter.RATE, BassMeter.CHANNELS, it, true) }
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun playing(mediaPlayer: MediaPlayer) = post {
                 buffering = false
@@ -611,6 +631,7 @@ class PlaybackEngine(
             scope.coroutineContext[Job]?.cancelAndJoin()
             runCatching { player.controls().stop() }
             runCatching { player.release() }
+            bassMeter?.close()
         }
     }
 }

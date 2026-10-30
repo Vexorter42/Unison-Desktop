@@ -130,6 +130,14 @@ tasks.register<JavaExec>("shotsCheck") {
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
+// Звук через приложение для сферы: играет, пауза, перемотка, уровень басов (тихо, на временной папке данных)
+tasks.register<JavaExec>("bassCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.BassCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
 // Резервная копия в формате телефона — на временной папке данных
 tasks.register<JavaExec>("backupCheck") {
     group = "verification"

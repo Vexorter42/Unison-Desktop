@@ -40,6 +40,8 @@ data class AppSettings(
     val palette: Int = 0,
     /** Цвета экрана берутся из обложки текущего трека (поверх выбранной палитры). */
     val coverTheme: Boolean = true,
+    /** Сфера Моей волны шевелится и пульсирует от басов (звук тогда идёт через приложение). */
+    val sphereMotion: Boolean = true,
     /** Боковое меню свёрнуто до иконок. */
     val sidebarCollapsed: Boolean = false,
     /** Тема Liquid Glass: живой фон, стекло с преломлением, пузырь-индикатор, переключатели-капли. */

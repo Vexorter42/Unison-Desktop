@@ -190,6 +190,12 @@ fun SettingsScreen() {
         Toggle("Liquid Glass", s.liquidGlass, note = "Стекло с преломлением, живой фон и пузырь-индикатор — как в Android-версии") { v ->
             set { it.copy(liquidGlass = v) }
         }
+        Toggle(
+            "Живая сфера в Моей волне",
+            s.sphereMotion,
+            note = "Сфера за надписью шевелится и пульсирует от басов. Выключите, если отвлекает — останется неподвижной " +
+                "(звук после перезапуска снова пойдёт напрямую через VLC)",
+        ) { v -> set { it.copy(sphereMotion = v) } }
         Toggle("Цвета из обложки", s.coverTheme, note = "Палитра окна берётся из обложки текущего трека") { v -> set { it.copy(coverTheme = v) } }
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

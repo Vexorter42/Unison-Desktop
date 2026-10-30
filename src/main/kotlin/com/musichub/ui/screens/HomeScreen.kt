@@ -68,6 +68,7 @@ import com.musichub.ui.LocalGraph
 import com.musichub.ui.PrimaryPill
 import com.musichub.ui.SectionTitle
 import com.musichub.ui.TrackRow
+import com.musichub.ui.WaveSphere
 import com.musichub.ui.glassFill
 import kotlinx.coroutines.launch
 import kotlin.math.cos
@@ -124,6 +125,8 @@ fun HomeScreen(openSettings: () -> Unit) {
             playing = waveOn && state.isPlaying,
             nowPlaying = state.track?.takeIf { waveOn }?.let { "${it.artists} — ${it.title}" },
             loggedIn = settings.yandexLoggedIn,
+            sphereMotion = settings.sphereMotion,
+            bass = { if (waveOn) engine.bassLevel else 0f },
             onPlay = { if (waveOn) engine.togglePlay() else engine.startWave() },
             onLogin = openSettings,
         ) {
@@ -165,6 +168,8 @@ private fun WaveHero(
     playing: Boolean,
     nowPlaying: String?,
     loggedIn: Boolean,
+    sphereMotion: Boolean,
+    bass: () -> Float,
     onPlay: () -> Unit,
     onLogin: () -> Unit,
     controls: @Composable () -> Unit,
@@ -182,16 +187,19 @@ private fun WaveHero(
             val h = size.height
             fun blob(color: Color, cx: Float, cy: Float, r: Float) =
                 drawCircle(Brush.radialGradient(listOf(color, Color.Transparent), Offset(cx, cy), r), r, Offset(cx, cy))
-            blob(from.copy(alpha = 0.85f), w * (0.3f + 0.15f * cos(phase)), h * (0.28f + 0.08f * sin(phase)), w * 0.6f)
-            blob(to.copy(alpha = 0.7f), w * (0.75f + 0.12f * sin(phase * 0.8f)), h * (0.55f + 0.1f * cos(phase * 0.8f)), w * 0.55f)
+            blob(from.copy(alpha = 0.55f), w * (0.3f + 0.15f * cos(phase)), h * (0.28f + 0.08f * sin(phase)), w * 0.6f)
+            blob(to.copy(alpha = 0.45f), w * (0.75f + 0.12f * sin(phase * 0.8f)), h * (0.55f + 0.1f * cos(phase * 0.8f)), w * 0.55f)
             blob(from.copy(alpha = 0.45f), w * (0.5f + 0.2f * sin(phase * 1.3f)), h * (0.95f + 0.05f * cos(phase)), w * 0.5f)
         }
+        // Светящаяся сфера за надписью — шевелится и пульсирует от басов
+        WaveSphere(from, to, motion = sphereMotion, bass = bass, modifier = Modifier.fillMaxSize(), centerY = 0.3f)
         Column(Modifier.fillMaxSize()) {
             Column(
                 Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
             ) {
+                // Надпись — в центре сферы (centerY = 0.3 высоты карточки), кнопка — на её нижнем краю
+                Spacer(Modifier.height(150.dp))
                 Text("Моя волна", fontSize = 46.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
                 Text(subtitle, color = Color.White.copy(alpha = 0.8f), fontSize = 16.sp, modifier = Modifier.padding(top = 4.dp))
                 Spacer(Modifier.height(30.dp))
