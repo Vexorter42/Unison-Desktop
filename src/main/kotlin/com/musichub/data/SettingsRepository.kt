@@ -31,6 +31,8 @@ data class AppSettings(
     val searchSoundcloud: Boolean = true,
     /** Если трек не играет в своём сервисе — искать замену в других. */
     val fallbackToOthers: Boolean = true,
+    /** Обычная очередь доиграла — продолжить похожими треками на последний. */
+    val autoContinueSimilar: Boolean = false,
     val quality: Quality = Quality.HIGH,
     val waveMood: String = "all",
     val waveDiversity: String = "default",

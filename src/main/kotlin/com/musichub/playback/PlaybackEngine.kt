@@ -506,8 +506,15 @@ class PlaybackEngine(
                 }
             }
             else -> {
-                player.controls().stop()
-                publish()
+                // Обычная очередь доиграла до конца — по желанию продолжаем похожими на последний трек
+                val last = queue.lastOrNull()
+                if (settings.current.autoContinueSimilar && last != null && order.isNotEmpty()) {
+                    _messages.tryEmit("Очередь кончилась — играю похожие на «${last.title}»")
+                    startRadio(last)
+                } else {
+                    player.controls().stop()
+                    publish()
+                }
             }
         }
     }
@@ -535,6 +542,10 @@ class PlaybackEngine(
         curStation = radioStation
         recentKeys.addLast(t.key)
         if (recentKeys.size > 200) recentKeys.removeFirst()
+        // Заранее ищем ссылку на поток следующего трека — переключение будет без паузы
+        order.getOrNull(pos + 1)?.let { queue.getOrNull(it) }
+            ?.takeIf { it.source != Source.LOCAL }
+            ?.let { next -> scope.launch(Dispatchers.IO) { runCatching { resolver.resolve(next) } } }
         val station = curStation
         if (curFromWave && station != null && t.source == Source.YANDEX) {
             val batch = waveBatchId

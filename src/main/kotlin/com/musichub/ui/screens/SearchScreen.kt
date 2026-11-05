@@ -56,6 +56,8 @@ class SearchState {
     var errors by mutableStateOf<List<String>>(emptyList())
     var loading by mutableStateOf(false)
     var searched by mutableStateOf(false)
+    /** Счётчик «запустить поиск снаружи» (клик по исполнителю): экран следит и запускает. */
+    var autoRun by mutableStateOf(0)
 }
 
 @Composable
@@ -80,6 +82,9 @@ fun SearchScreen(state: SearchState) {
             state.searched = true
         }
     }
+
+    // Клик по исполнителю в плеере или меню трека — запрос уже вписан, осталось запустить
+    LaunchedEffect(state.autoRun) { if (state.autoRun > 0) run() }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 32.dp, vertical = 24.dp)) {
         Text("Поиск", fontSize = 32.sp, fontWeight = FontWeight.Bold)

@@ -25,6 +25,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -34,6 +37,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -86,146 +90,173 @@ fun SettingsScreen() {
         Text("Аккаунты и настройки", fontSize = 32.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(20.dp))
 
-        AccountCard(
-            title = "Яндекс Музыка",
-            loggedInAs = s.yandexLogin?.let { "Вход выполнен: $it" }.takeIf { s.yandexLoggedIn },
-            hint = "Откроется окно браузера: войдите в Яндекс и нажмите «Разрешить». Окно закроется само.",
-            browserLogin = {
-                graph.browserLogin.login(YandexApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
-            },
-            manualHint = "Откройте вход в своём браузере, войдите и разрешите доступ. Браузер перейдёт на страницу, " +
-                "в адресе которой есть access_token=… — скопируйте этот адрес целиком (или только токен) и вставьте сюда.",
-            manualUrl = YandexApi.OAUTH_URL,
-            placeholder = "Адрес страницы после входа или токен",
-            onSubmit = { input ->
-                val token = BrowserLogin.tokenFromUrl(input) ?: input
-                val (uid, login) = graph.yandex.account(token)
-                graph.settings.update { it.copy(yandexToken = token, yandexUid = uid, yandexLogin = login) }
-                runCatching { graph.yandex.refreshLikes() }
-            },
-            onLogout = { set { it.copy(yandexToken = null, yandexUid = null, yandexLogin = null) } },
-        )
-        Spacer(Modifier.height(14.dp))
-        AccountCard(
-            title = "ВКонтакте",
-            loggedInAs = s.vkName?.let { "Вход выполнен: $it" }.takeIf { s.vkLoggedIn },
-            hint = "Вход через Kate Mobile в окне браузера. ВК иногда ограничивает доступ к музыке — тогда поиск в ВК просто пропускается.",
-            browserLogin = {
-                graph.browserLogin.login(VkApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
-            },
-            manualHint = "Откройте вход в своём браузере, после входа скопируйте адрес страницы oauth.vk.com/blank.html#access_token=… и вставьте сюда.",
-            manualUrl = VkApi.OAUTH_URL,
-            placeholder = "Адрес blank.html#access_token=… или токен",
-            onSubmit = { input ->
-                val token = BrowserLogin.tokenFromUrl(input) ?: input
-                val (id, name) = graph.vk.profile(token)
-                graph.settings.update { it.copy(vkToken = token, vkUserId = id, vkName = name) }
-            },
-            onLogout = { set { it.copy(vkToken = null, vkUserId = null, vkName = null) } },
-        )
-        Spacer(Modifier.height(14.dp))
-        AccountCard(
-            title = "YouTube Music",
-            loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
-            hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
-                "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
-            browserLogin = {
-                val all = graph.browserLogin.loginAndReadCookies(BrowserLogin.YOUTUBE_LOGIN_URL, doneTitle = "YouTube Music")
-                BrowserLogin.youtubeCookie(all).also { if ("SAPISID=" !in it) error("Вход в Google не завершён — попробуйте ещё раз") }
-            },
-            manualHint = "1. Откройте music.youtube.com в своём браузере и войдите в аккаунт.\n" +
-                "2. Нажмите F12 → вкладка «Сеть» (Network) → обновите страницу (F5).\n" +
-                "3. Правой кнопкой по первому запросу к music.youtube.com → Копировать → «Копировать как cURL (bash)».\n" +
-                "4. Вставьте сюда всё целиком — Unison сам найдёт cookie. Подойдёт и просто значение заголовка Cookie.",
-            manualUrl = "https://music.youtube.com",
-            placeholder = "cURL-запрос или заголовок Cookie",
-            onSubmit = { input ->
-                val cookie = cookieFromInput(input)
-                if ("SAPISID=" !in cookie) error("В cookie нет SAPISID — похоже, скопирован запрос без входа в аккаунт")
-                val name = graph.ytMusic.accountName(cookie)
-                graph.settings.update { it.copy(ytCookie = cookie, ytAccountName = name) }
-            },
-            onLogout = { set { it.copy(ytCookie = null, ytAccountName = null) } },
-        )
-
-        Spacer(Modifier.height(28.dp))
-        Text("Поиск и воспроизведение", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Toggle("Искать на YouTube", s.searchYoutube) { v -> set { it.copy(searchYoutube = v) } }
-        Toggle("Искать во ВКонтакте", s.searchVk) { v -> set { it.copy(searchVk = v) } }
-        Toggle("Искать на SoundCloud", s.searchSoundcloud, note = "Ремиксы, демо и треки, которых нет в других сервисах. Без входа") { v ->
-            set { it.copy(searchSoundcloud = v) }
+        Section("Аккаунты", initiallyExpanded = true) {
+            AccountCard(
+                title = "Яндекс Музыка",
+                loggedInAs = s.yandexLogin?.let { "Вход выполнен: $it" }.takeIf { s.yandexLoggedIn },
+                hint = "Откроется окно браузера: войдите в Яндекс и нажмите «Разрешить». Окно закроется само.",
+                browserLogin = {
+                    graph.browserLogin.login(YandexApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
+                },
+                manualHint = "Откройте вход в своём браузере, войдите и разрешите доступ. Браузер перейдёт на страницу, " +
+                    "в адресе которой есть access_token=… — скопируйте этот адрес целиком (или только токен) и вставьте сюда.",
+                manualUrl = YandexApi.OAUTH_URL,
+                placeholder = "Адрес страницы после входа или токен",
+                onSubmit = { input ->
+                    val token = BrowserLogin.tokenFromUrl(input) ?: input
+                    val (uid, login) = graph.yandex.account(token)
+                    graph.settings.update { it.copy(yandexToken = token, yandexUid = uid, yandexLogin = login) }
+                    runCatching { graph.yandex.refreshLikes() }
+                },
+                onLogout = { set { it.copy(yandexToken = null, yandexUid = null, yandexLogin = null) } },
+            )
+            Spacer(Modifier.height(14.dp))
+            AccountCard(
+                title = "ВКонтакте",
+                loggedInAs = s.vkName?.let { "Вход выполнен: $it" }.takeIf { s.vkLoggedIn },
+                hint = "Вход через Kate Mobile в окне браузера. ВК иногда ограничивает доступ к музыке — тогда поиск в ВК просто пропускается.",
+                browserLogin = {
+                    graph.browserLogin.login(VkApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
+                },
+                manualHint = "Откройте вход в своём браузере, после входа скопируйте адрес страницы oauth.vk.com/blank.html#access_token=… и вставьте сюда.",
+                manualUrl = VkApi.OAUTH_URL,
+                placeholder = "Адрес blank.html#access_token=… или токен",
+                onSubmit = { input ->
+                    val token = BrowserLogin.tokenFromUrl(input) ?: input
+                    val (id, name) = graph.vk.profile(token)
+                    graph.settings.update { it.copy(vkToken = token, vkUserId = id, vkName = name) }
+                },
+                onLogout = { set { it.copy(vkToken = null, vkUserId = null, vkName = null) } },
+            )
+            Spacer(Modifier.height(14.dp))
+            AccountCard(
+                title = "YouTube Music",
+                loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
+                hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
+                    "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
+                browserLogin = {
+                    val all = graph.browserLogin.loginAndReadCookies(BrowserLogin.YOUTUBE_LOGIN_URL, doneTitle = "YouTube Music")
+                    BrowserLogin.youtubeCookie(all).also { if ("SAPISID=" !in it) error("Вход в Google не завершён — попробуйте ещё раз") }
+                },
+                manualHint = "1. Откройте music.youtube.com в своём браузере и войдите в аккаунт.\n" +
+                    "2. Нажмите F12 → вкладка «Сеть» (Network) → обновите страницу (F5).\n" +
+                    "3. Правой кнопкой по первому запросу к music.youtube.com → Копировать → «Копировать как cURL (bash)».\n" +
+                    "4. Вставьте сюда всё целиком — Unison сам найдёт cookie. Подойдёт и просто значение заголовка Cookie.",
+                manualUrl = "https://music.youtube.com",
+                placeholder = "cURL-запрос или заголовок Cookie",
+                onSubmit = { input ->
+                    val cookie = cookieFromInput(input)
+                    if ("SAPISID=" !in cookie) error("В cookie нет SAPISID — похоже, скопирован запрос без входа в аккаунт")
+                    val name = graph.ytMusic.accountName(cookie)
+                    graph.settings.update { it.copy(ytCookie = cookie, ytAccountName = name) }
+                },
+                onLogout = { set { it.copy(ytCookie = null, ytAccountName = null) } },
+            )
         }
-        Toggle(
-            "Подмешивать YouTube в Мою волну",
-            s.mixYoutubeInWave,
-            note = "Похожие треки с YouTube между треками волны — как в Android-версии",
-        ) { v -> set { it.copy(mixYoutubeInWave = v) } }
-        if (s.mixYoutubeInWave) {
-            Row(
-                Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("Каждый", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                listOf(2, 3, 4, 5, 6, 8, 10).forEach { n -> GlassChip("$n-й", s.mixEvery == n) { set { it.copy(mixEvery = n) } } }
-                Text("трек", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Section("Поиск и воспроизведение") {
+            Toggle("Искать на YouTube", s.searchYoutube) { v -> set { it.copy(searchYoutube = v) } }
+            Toggle("Искать во ВКонтакте", s.searchVk) { v -> set { it.copy(searchVk = v) } }
+            Toggle("Искать на SoundCloud", s.searchSoundcloud, note = "Ремиксы, демо и треки, которых нет в других сервисах. Без входа") { v ->
+                set { it.copy(searchSoundcloud = v) }
+            }
+            Toggle(
+                "Подмешивать YouTube в Мою волну",
+                s.mixYoutubeInWave,
+                note = "Похожие треки с YouTube между треками волны — как в Android-версии",
+            ) { v -> set { it.copy(mixYoutubeInWave = v) } }
+            if (s.mixYoutubeInWave) {
+                Row(
+                    Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("Каждый", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    listOf(2, 3, 4, 5, 6, 8, 10).forEach { n -> GlassChip("$n-й", s.mixEvery == n) { set { it.copy(mixEvery = n) } } }
+                    Text("трек", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Toggle(
+                "Замена, если трек не играет",
+                s.fallbackToOthers,
+                note = "Ищет тот же трек в другом сервисе: например, YouTube просит «подтвердить, что вы не бот» — играет из Яндекса",
+            ) { v -> set { it.copy(fallbackToOthers = v) } }
+            Toggle(
+                "Похожие, когда очередь кончилась",
+                s.autoContinueSimilar,
+                note = "Плейлист доиграл — продолжить похожими треками на последний",
+            ) { v -> set { it.copy(autoContinueSimilar = v) } }
+            Spacer(Modifier.height(10.dp))
+            Text("Качество", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Quality.entries.forEach { q -> GlassChip(q.label, s.quality == q) { set { it.copy(quality = q) } } }
             }
         }
-        Toggle(
-            "Замена, если трек не играет",
-            s.fallbackToOthers,
-            note = "Ищет тот же трек в другом сервисе: например, YouTube просит «подтвердить, что вы не бот» — играет из Яндекса",
-        ) { v -> set { it.copy(fallbackToOthers = v) } }
-        Spacer(Modifier.height(10.dp))
-        Text("Качество", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-        Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Quality.entries.forEach { q -> GlassChip(q.label, s.quality == q) { set { it.copy(quality = q) } } }
-        }
 
-        Spacer(Modifier.height(28.dp))
-        Text("Оформление", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Toggle("Liquid Glass", s.liquidGlass, note = "Стекло с преломлением, живой фон и пузырь-индикатор — как в Android-версии") { v ->
-            set { it.copy(liquidGlass = v) }
-        }
-        Toggle(
-            "Живая сфера в Моей волне",
-            s.sphereMotion,
-            note = "Сфера за надписью шевелится и пульсирует от басов. Выключите, если отвлекает — останется неподвижной " +
-                "(звук после перезапуска снова пойдёт напрямую через VLC)",
-        ) { v -> set { it.copy(sphereMotion = v) } }
-        Toggle("Цвета из обложки", s.coverTheme, note = "Палитра окна берётся из обложки текущего трека") { v -> set { it.copy(coverTheme = v) } }
-        Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Palettes.forEachIndexed { i, p ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { set { it.copy(palette = i) } }) {
-                    Box(
-                        Modifier.size(44.dp).clip(CircleShape).background(p.gradient)
-                            .then(if (s.palette == i) Modifier.border(2.dp, Color.White, CircleShape) else Modifier),
-                    )
-                    Text(p.name, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+        Section("Оформление") {
+            Toggle("Liquid Glass", s.liquidGlass, note = "Стекло с преломлением, живой фон и пузырь-индикатор — как в Android-версии") { v ->
+                set { it.copy(liquidGlass = v) }
+            }
+            Toggle(
+                "Живая сфера в Моей волне",
+                s.sphereMotion,
+                note = "Сфера за надписью шевелится и пульсирует от басов. Выключите, если отвлекает — останется неподвижной " +
+                    "(звук после перезапуска снова пойдёт напрямую через VLC)",
+            ) { v -> set { it.copy(sphereMotion = v) } }
+            Toggle("Цвета из обложки", s.coverTheme, note = "Палитра окна берётся из обложки текущего трека") { v -> set { it.copy(coverTheme = v) } }
+            Spacer(Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Palettes.forEachIndexed { i, p ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { set { it.copy(palette = i) } }) {
+                        Box(
+                            Modifier.size(44.dp).clip(CircleShape).background(p.gradient)
+                                .then(if (s.palette == i) Modifier.border(2.dp, Color.White, CircleShape) else Modifier),
+                        )
+                        Text(p.name, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    }
                 }
             }
         }
 
-        Spacer(Modifier.height(28.dp))
-        Text("Резервная копия", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        BackupSection()
+        Section("Резервная копия") {
+            BackupSection()
+        }
 
-        Spacer(Modifier.height(28.dp))
-        Text("Обновления", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        UpdatesSection()
+        Section("Обновления") {
+            UpdatesSection()
+        }
 
-        Spacer(Modifier.height(28.dp))
-        Text(
-            "Данные приложения: ${AppDirs.root.absolutePath}\nUnison — свободная программа (GPL-3.0), использует NewPipe Extractor и libVLC.",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Section("О приложении") {
+            Text(
+                "Данные приложения: ${AppDirs.root.absolutePath}\nUnison — свободная программа (GPL-3.0), использует NewPipe Extractor и libVLC.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/** Раскрывающаяся категория настроек: заголовок со стрелкой, содержимое — по нажатию. */
+@Composable
+private fun Section(title: String, initiallyExpanded: Boolean = false, content: @Composable () -> Unit) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    Column(Modifier.padding(top = 20.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { expanded = !expanded }.padding(vertical = 6.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Icon(
+                if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                if (expanded) "Свернуть" else "Развернуть",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (expanded) {
+            Spacer(Modifier.height(8.dp))
+            content()
+        }
     }
 }
 

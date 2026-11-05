@@ -67,12 +67,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.desktop.AppGraph
+import com.musichub.data.model.Track
 import com.musichub.ui.screens.FavoritesScreen
 import com.musichub.ui.screens.HomeScreen
 import com.musichub.ui.screens.LibraryScreen
 import com.musichub.ui.screens.SearchScreen
 import com.musichub.ui.screens.SearchState
 import com.musichub.ui.screens.SettingsScreen
+import com.musichub.ui.screens.SimilarScreen
 import com.musichub.ui.screens.TrackListScreen
 import com.musichub.ui.screens.TrackSource
 import com.musichub.ui.screens.TransferScreen
@@ -97,6 +99,8 @@ fun UnisonApp() {
     var tab by remember { mutableStateOf(Tab.HOME) }
     /** Открытый плейлист поверх вкладки «Медиатека». */
     var opened by remember { mutableStateOf<TrackSource?>(null) }
+    /** Открытые «похожие» — поверх любой вкладки (клик по названию трека). */
+    var similar by remember { mutableStateOf<Track?>(null) }
     var panel by remember { mutableStateOf(SidePanel.NONE) }
     val search = remember { SearchState() }
     val snackbar = remember { SnackbarHostState() }
@@ -106,6 +110,29 @@ fun UnisonApp() {
     }
 
     val graph = LocalGraph.current
+
+    // Клик по исполнителю — вкладка поиска с готовым запросом; по названию — похожие треки
+    LaunchedEffect(Unit) {
+        graph.pendingSearch.collect { q ->
+            if (q != null) {
+                graph.pendingSearch.value = null
+                search.query = q
+                search.autoRun++
+                tab = Tab.SEARCH
+                opened = null
+                similar = null
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        graph.pendingSimilar.collect { t ->
+            if (t != null) {
+                graph.pendingSimilar.value = null
+                opened = null
+                similar = t
+            }
+        }
+    }
     val settings by graph.settings.flow.collectAsState()
     val liquid = settings.liquidGlass
     val backdrop = rememberLiquidBackdrop()
@@ -130,8 +157,9 @@ fun UnisonApp() {
                     }
                     Spacer(Modifier.width(12.dp))
                     Box(Modifier.weight(1f).fillMaxHeight()) {
-                        Crossfade(tab to opened) { (t, o) ->
+                        Crossfade(Triple(tab, opened, similar)) { (t, o, sim) ->
                             when {
+                                sim != null -> SimilarScreen(sim, onBack = { similar = null })
                                 o != null -> TrackListScreen(o, onBack = { opened = null })
                                 t == Tab.HOME -> HomeScreen(openSettings = { tab = Tab.SETTINGS })
                                 t == Tab.SEARCH -> SearchScreen(search)

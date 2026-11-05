@@ -2,6 +2,7 @@ package com.musichub.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.hoverable
@@ -94,6 +95,10 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // Клик по названию — похожие треки
+                    modifier = if (track != null) {
+                        Modifier.pointerHoverIcon(PointerIcon.Hand).clickable { graph.pendingSimilar.value = track }
+                    } else Modifier,
                 )
                 Text(
                     track?.artists ?: "Включите Мою волну или найдите трек",
@@ -101,6 +106,10 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier
                     color = muted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // Клик по исполнителю — найти его в поиске
+                    modifier = if (track != null) {
+                        Modifier.pointerHoverIcon(PointerIcon.Hand).clickable { graph.pendingSearch.value = track.artists }
+                    } else Modifier,
                 )
                 val label = listOfNotNull(s.radioTitle, if (s.viaFallback) "из замены" else null).joinToString(" · ")
                 if (label.isNotEmpty()) Text(label, fontSize = 11.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)

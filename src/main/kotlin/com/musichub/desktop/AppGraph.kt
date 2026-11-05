@@ -66,6 +66,12 @@ class AppGraph {
     /** Закрыть приложение так же, как крестиком окна (ставит Main). */
     var requestExit: () -> Unit = {}
 
+    /** Запрос, который надо открыть в поиске (клик по исполнителю). */
+    val pendingSearch = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    /** Трек, для которого надо показать экран похожих (клик по названию). */
+    val pendingSimilar = kotlinx.coroutines.flow.MutableStateFlow<com.musichub.data.model.Track?>(null)
+
     private val resolver = StreamResolver(settings, yandex, vk, youtube, soundcloud)
     private val proxy = StreamProxy(streamHttp)
 

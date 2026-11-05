@@ -358,6 +358,8 @@ fun TrackRow(
             DropdownMenu(menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text("Играть следующим") }, onClick = { menu = false; engine.playNext(track) })
                 DropdownMenuItem(text = { Text("Добавить в очередь") }, onClick = { menu = false; engine.enqueue(track) })
+                DropdownMenuItem(text = { Text("Похожие треки") }, onClick = { menu = false; graph.pendingSimilar.value = track })
+                DropdownMenuItem(text = { Text("Искать исполнителя") }, onClick = { menu = false; graph.pendingSearch.value = track.artists })
                 DropdownMenuItem(text = { Text("Радио по треку") }, onClick = { menu = false; engine.startRadio(track) })
             }
         }
