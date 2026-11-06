@@ -14,8 +14,8 @@ import kotlin.math.sqrt
  * Вывод звука через приложение вместо собственного вывода VLC: VLC отдаёт сэмплы, мы меряем по ним силу басов
  * (от неё пульсирует сфера волны), применяем громкость и пишем в звуковую карту.
  *
- * Громкость применяем сами (VLC вызывает [setVolume]), а не VLC: его программная громкость в 16 битах
- * на малых значениях обнуляет звук. Формат — только 16 бит: другие VLC 3 в этом режиме не отдаёт.
+ * Громкость применяем сами: программная громкость VLC в 16 битах на малых значениях обнуляет звук.
+ * Формат — только 16 бит: другие VLC 3 в этом режиме не отдаёт.
  */
 class BassMeter private constructor(private val line: SourceDataLine, initialVolume: Int) : AudioCallbackAdapter() {
 
@@ -83,13 +83,13 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
         level += (target - level) * if (target > level) 0.55f else 0.12f
     }
 
-    /**
-     * VLC сообщает громкость 0..1. Флаг mute не используем: vlcj читает сишный bool неверно и он всегда true,
-     * а своей кнопки «без звука» у Unison нет — тишина это громкость 0.
-     */
-    override fun setVolume(volume: Float, mute: Boolean) {
-        gain = curve(volume)
+    /** Громкостью владеет приложение: VLC сбрасывает её при открытии нового потока. */
+    fun setVolume(volume: Int) {
+        gain = curve(volume / 100f)
     }
+
+    /** Внутренний сброс VLC не должен менять усиление уже играющего или следующего трека. */
+    override fun setVolume(volume: Float, mute: Boolean) = Unit
 
     override fun pause(mediaPlayer: MediaPlayer, pts: Long) {
         line.stop()

@@ -477,7 +477,9 @@ class PlaybackEngine(
                 if (stream.viaFallback) _messages.tryEmit("«${t.title}» играет из замены")
                 val mrl = proxy.register(stream.url)
                 currentMrl = mrl
+                applyVolume()
                 val ok = player.media().play(mrl, ":no-video", ":http-reconnect")
+                applyVolume()
                 if (!ok) onTrackError()
                 publish()
             }.onFailure { e ->
@@ -585,6 +587,7 @@ class PlaybackEngine(
     }
 
     private fun applyVolume() {
+        bassMeter?.setVolume(_state.value.volume)
         player.audio().setVolume(_state.value.volume)
     }
 
