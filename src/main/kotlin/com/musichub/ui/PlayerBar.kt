@@ -54,6 +54,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.musichub.ui.liquid.panelSurface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -67,7 +69,7 @@ import com.musichub.util.formatTime
 enum class SidePanel { NONE, LYRICS, QUEUE }
 
 @Composable
-fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier = Modifier) {
+fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
     val graph = LocalGraph.current
     val engine = LocalEngine.current
     val s by engine.state.collectAsState()
@@ -87,7 +89,16 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier
     ) {
         // Слева: обложка и название
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-            Cover(track?.coverUrl, size = 60.dp, corner = 10.dp)
+            Cover(
+                track?.coverUrl,
+                size = 60.dp,
+                corner = 10.dp,
+                modifier = if (track != null) Modifier
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable(onClick = onOpenPlayer)
+                    .semantics { contentDescription = "Открыть большой плеер" }
+                else Modifier,
+            )
             Column(Modifier.weight(1f, fill = false).padding(start = 12.dp, end = 8.dp)) {
                 Text(
                     track?.title ?: "Ничего не играет",
@@ -205,7 +216,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, modifier: Modifier
 }
 
 @Composable
-private fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
+internal fun ProgressRow(positionMs: Long, durationMs: Long, onSeek: (Long) -> Unit) {
     var dragging by remember { mutableStateOf<Float?>(null) }
     val fraction = dragging ?: if (durationMs > 0) (positionMs.toFloat() / durationMs).coerceIn(0f, 1f) else 0f
     val muted = MaterialTheme.colorScheme.onSurfaceVariant

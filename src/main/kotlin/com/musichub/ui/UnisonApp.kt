@@ -2,6 +2,8 @@ package com.musichub.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -102,6 +104,7 @@ fun UnisonApp() {
     /** Открытые «похожие» — поверх любой вкладки (клик по названию трека). */
     var similar by remember { mutableStateOf<Track?>(null) }
     var panel by remember { mutableStateOf(SidePanel.NONE) }
+    var playerOpen by remember { mutableStateOf(false) }
     val search = remember { SearchState() }
     val snackbar = remember { SnackbarHostState() }
 
@@ -186,11 +189,14 @@ fun UnisonApp() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                PlayerBar(panel, onPanel = { panel = it })
+                PlayerBar(panel, onPanel = { panel = it }, onOpenPlayer = { playerOpen = true })
             }
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 116.dp)) { data ->
                 Snackbar(data, containerColor = Color(0xFF26262E), contentColor = Color.White, shape = RoundedCornerShape(14.dp))
+            }
+            AnimatedVisibility(playerOpen, enter = fadeIn(), exit = fadeOut()) {
+                FullPlayer(onBack = { playerOpen = false })
             }
         }
     }
