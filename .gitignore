@@ -7,3 +7,4 @@ dist/
 *.msi
 *.exe
 *.log
+.worktrees/
