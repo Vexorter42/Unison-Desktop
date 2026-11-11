@@ -11,8 +11,6 @@ import com.musichub.youtube.YouTubeApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-data class SearchResult(val tracks: List<Track>, val errors: List<String>)
-
 /** Единый поиск: Яндекс + ВК + YouTube + SoundCloud, одинаковые треки склеиваются в один. */
 class SearchRepository(
     private val yandex: YandexApi,
@@ -21,21 +19,61 @@ class SearchRepository(
     private val soundcloud: SoundCloudApi,
     private val settings: SettingsRepository,
 ) {
-    suspend fun search(query: String): SearchResult = coroutineScope {
+    suspend fun search(query: String, category: SearchCategory = SearchCategory.TRACKS): SearchResult = coroutineScope {
         val s = settings.current
+        when (category) {
+            SearchCategory.TRACKS -> searchTracks(query, s)
+            SearchCategory.ARTISTS -> {
+                val ya = async { runCatching { yandex.searchArtists(query) } }
+                val yt = async { if (s.searchYoutube) runCatching { youtube.searchArtists(query) } else Result.success(emptyList()) }
+                val results = listOf("Яндекс" to ya.await(), "YouTube" to yt.await())
+                SearchResult(
+                    artists = results.flatMap { it.second.getOrDefault(emptyList()) }.distinctBy { "${it.source}:${it.id}" },
+                    errors = results.mapNotNull { (name, r) -> r.exceptionOrNull()?.let { "$name: ${it.message}" } },
+                )
+            }
+            SearchCategory.ALBUMS -> {
+                val ya = async { runCatching { yandex.searchAlbums(query) } }
+                val yt = async { if (s.searchYoutube) runCatching { youtube.searchAlbums(query) } else Result.success(emptyList()) }
+                val results = listOf("Яндекс" to ya.await(), "YouTube" to yt.await())
+                SearchResult(
+                    albums = results.flatMap { it.second.getOrDefault(emptyList()) }.distinctBy { "${it.source}:${it.id}" },
+                    errors = results.mapNotNull { (name, r) -> r.exceptionOrNull()?.let { "$name: ${it.message}" } },
+                )
+            }
+            SearchCategory.PLAYLISTS -> {
+                val ya = async { runCatching { yandex.searchPlaylists(query) } }
+                val yt = async { if (s.searchYoutube) runCatching { youtube.searchPlaylists(query) } else Result.success(emptyList()) }
+                val results = listOf("Яндекс" to ya.await(), "YouTube" to yt.await())
+                SearchResult(
+                    playlists = results.flatMap { it.second.getOrDefault(emptyList()) }.distinctBy { "${it.source}:${it.id}" },
+                    errors = results.mapNotNull { (name, r) -> r.exceptionOrNull()?.let { "$name: ${it.message}" } },
+                )
+            }
+        }
+    }
+
+    private suspend fun searchTracks(query: String, s: com.musichub.data.AppSettings): SearchResult = coroutineScope {
         val ya = async { runCatching { yandex.search(query) } }
         val vkRes = async { if (s.searchVk && s.vkLoggedIn) runCatching { vk.search(query) } else Result.success(emptyList()) }
         val yt = async { if (s.searchYoutube) runCatching { youtube.search(query) } else Result.success(emptyList()) }
         val sc = async { if (s.searchSoundcloud) runCatching { soundcloud.search(query) } else Result.success(emptyList()) }
         val results = listOf("Яндекс" to ya.await(), "ВК" to vkRes.await(), "YouTube" to yt.await(), "SoundCloud" to sc.await())
-
-        // Порядок важен: у Яндекса лучшие метаданные, поэтому он «главный», остальные — подмешиваются
         var merged = emptyList<Track>()
         for ((_, r) in results) merged = merge(merged, r.getOrDefault(emptyList()))
         SearchResult(
             tracks = merged,
             errors = results.mapNotNull { (name, r) -> r.exceptionOrNull()?.let { "$name: ${it.message}" } },
         )
+    }
+
+    suspend fun loadCollection(item: CollectionSearchResult): List<Track> = when (item.source) {
+        Source.YANDEX -> when (item.kind) {
+            CollectionKind.ALBUM -> yandex.albumTracks(item.id)
+            CollectionKind.PLAYLIST -> item.id.split(':').let { yandex.playlistTracks(it[0], it[1].toLong()) }
+        }
+        Source.YOUTUBE -> youtube.playlist(item.url ?: item.id).second
+        else -> emptyList()
     }
 
     fun merge(base: List<Track>, extra: List<Track>): List<Track> {

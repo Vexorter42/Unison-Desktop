@@ -165,7 +165,15 @@ fun UnisonApp() {
                                 sim != null -> SimilarScreen(sim, onBack = { similar = null })
                                 o != null -> TrackListScreen(o, onBack = { opened = null })
                                 t == Tab.HOME -> HomeScreen(openSettings = { tab = Tab.SETTINGS })
-                                t == Tab.SEARCH -> SearchScreen(search)
+                                t == Tab.SEARCH -> SearchScreen(search) { item ->
+                                    opened = TrackSource(
+                                        id = "search:${item.source}:${item.kind}:${item.id}",
+                                        title = item.title,
+                                        subtitle = item.subtitle,
+                                        coverUrl = item.coverUrl,
+                                        load = { graph.search.loadCollection(item) },
+                                    )
+                                }
                                 t == Tab.LIBRARY -> LibraryScreen(
                                     open = { opened = it },
                                     openFavorites = { tab = Tab.FAVORITES },

@@ -1,6 +1,8 @@
 package com.musichub.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,6 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,9 +42,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.data.model.Track
+import com.musichub.search.CollectionSearchResult
+import com.musichub.search.SearchCategory
+import com.musichub.search.SearchResult
 import com.musichub.ui.Hint
 import com.musichub.ui.LocalEngine
 import com.musichub.ui.LocalGraph
@@ -52,7 +61,8 @@ import kotlinx.coroutines.launch
 /** Состояние поиска живёт выше экрана, чтобы результаты не пропадали при переходах. */
 class SearchState {
     var query by mutableStateOf("")
-    var results by mutableStateOf<List<Track>>(emptyList())
+    var category by mutableStateOf(SearchCategory.TRACKS)
+    var results by mutableStateOf(SearchResult())
     var errors by mutableStateOf<List<String>>(emptyList())
     var loading by mutableStateOf(false)
     var searched by mutableStateOf(false)
@@ -61,7 +71,7 @@ class SearchState {
 }
 
 @Composable
-fun SearchScreen(state: SearchState) {
+fun SearchScreen(state: SearchState, openCollection: (CollectionSearchResult) -> Unit) {
     val graph = LocalGraph.current
     val engine = LocalEngine.current
     val scope = rememberCoroutineScope()
@@ -75,8 +85,8 @@ fun SearchScreen(state: SearchState) {
         job?.cancel()
         job = scope.launch {
             state.loading = true
-            val r = graph.search.search(q)
-            state.results = r.tracks
+            val r = graph.search.search(q, state.category)
+            state.results = r
             state.errors = r.errors
             state.loading = false
             state.searched = true
@@ -96,7 +106,7 @@ fun SearchScreen(state: SearchState) {
             Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.size(10.dp))
             Box(Modifier.weight(1f)) {
-                if (state.query.isEmpty()) Text("Трек, исполнитель — Яндекс, YouTube и ВК сразу", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+                if (state.query.isEmpty()) Text("Трек, автор, альбом или плейлист", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
                 BasicTextField(
                     value = state.query,
                     onValueChange = { state.query = it },
@@ -117,14 +127,55 @@ fun SearchScreen(state: SearchState) {
             )
         }
         Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SearchCategory.entries.forEach { category ->
+                com.musichub.ui.GlassChip(category.label, selected = state.category == category) {
+                    state.category = category
+                    run()
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
         when {
-            state.results.isNotEmpty() -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
-                itemsIndexed(state.results, key = { _, t -> t.key }) { i, t ->
-                    TrackRow(t, index = i, onPlay = { engine.playTracks(state.results, i) })
+            state.results.tracks.isNotEmpty() || state.results.artists.isNotEmpty() || state.results.albums.isNotEmpty() || state.results.playlists.isNotEmpty() -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                when (state.category) {
+                    SearchCategory.TRACKS -> itemsIndexed(state.results.tracks, key = { _, t -> t.key }) { i, t ->
+                        TrackRow(t, index = i, onPlay = { engine.playTracks(state.results.tracks, i) })
+                    }
+                    SearchCategory.ARTISTS -> itemsIndexed(state.results.artists, key = { _, a -> "${a.source}:${a.id}" }) { _, artist ->
+                        androidx.compose.material3.ListItem(
+                            headlineContent = { Text(artist.name) },
+                            supportingContent = { Text(artist.subtitle) },
+                            leadingContent = { Icon(Icons.Rounded.Person, null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable {
+                                state.category = SearchCategory.TRACKS
+                                state.query = artist.name
+                                run()
+                            },
+                        )
+                    }
+                    SearchCategory.ALBUMS -> itemsIndexed(state.results.albums, key = { _, a -> "${a.source}:${a.id}" }) { _, album ->
+                        CollectionRow(album) { openCollection(album) }
+                    }
+                    SearchCategory.PLAYLISTS -> itemsIndexed(state.results.playlists, key = { _, p -> "${p.source}:${p.id}" }) { _, playlist ->
+                        CollectionRow(playlist) { openCollection(playlist) }
+                    }
                 }
             }
             state.searched && !state.loading -> Hint("Ничего не нашлось")
             !state.searched -> Hint("Одинаковые треки из разных сервисов склеиваются в одну строку — значки показывают, где ещё он есть")
         }
     }
+}
+
+@Composable
+private fun CollectionRow(item: CollectionSearchResult, onClick: () -> Unit) {
+    androidx.compose.material3.ListItem(
+        headlineContent = { Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        supportingContent = { Text(item.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        leadingContent = {
+            Icon(if (item.kind.name == "ALBUM") Icons.Rounded.Album else Icons.Rounded.PlaylistPlay, null, tint = MaterialTheme.colorScheme.primary)
+        },
+        modifier = Modifier.clickable(onClick = onClick),
+    )
 }

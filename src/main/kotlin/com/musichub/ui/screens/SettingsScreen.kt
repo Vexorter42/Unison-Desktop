@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Login
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.Icon
@@ -221,6 +222,32 @@ fun SettingsScreen() {
 
         Section("Резервная копия") {
             BackupSection()
+        }
+
+        Section("Поддержать", initiallyExpanded = true) {
+            Row(
+                Modifier
+                    .widthIn(max = 760.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(glassFill(strong = true))
+                    .border(1.dp, Color(0x66FF5A63), RoundedCornerShape(20.dp))
+                    .clickable { openInBrowser("https://www.donationalerts.com/r/nick556655") }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x22FF5A63)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Favorite, contentDescription = null, tint = Color(0xFFFF5A63))
+                }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text("Поддержать Unison", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Донат через DonationAlerts", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Открыть DonationAlerts", tint = Color(0xFFFF5A63))
+            }
         }
 
         Section("Обновления") {
