@@ -12,7 +12,7 @@ import java.io.File
  * восстанавливается на ПК и наоборот. Имена полей менять нельзя.
  */
 
-/** Настройки без входов в аккаунты: токены и cookie в файл копии не попадают. Все поля обязательны — их ждёт телефон. */
+/** Настройки без входов в аккаунты: токены и cookie в файл копии не попадают. Новые поля имеют значения по умолчанию для старых копий. */
 @Serializable
 data class BackupSettings(
     val searchYoutube: Boolean,
@@ -32,6 +32,8 @@ data class BackupSettings(
     val liquidGlass: Boolean,
     val palette: Int,
     val coverTheme: Boolean,
+    val waveSource: WaveSource = WaveSource.YANDEX,
+    val waveLanguage: String = "any",
 )
 
 @Serializable
@@ -82,7 +84,7 @@ class Backup(
             settings = BackupSettings(
                 s.searchYoutube, s.searchVk, s.fallbackToOthers, s.mixYoutubeInWave, s.mixEvery, s.quality, s.fadeSeconds,
                 s.autoCacheMb, s.waveMood, s.waveDiversity, s.ytProxyEnabled, s.ytProxyType, s.ytProxyHost, s.ytProxyPort,
-                s.liquidGlass, s.palette, s.coverTheme,
+                s.liquidGlass, s.palette, s.coverTheme, s.waveSource, s.waveLanguage,
             ),
             playlists = lists,
             favorites = favorites.items.value.map { BackupFavorite(it.key, it.track.toJson(), it.addedAt, it.sentYandex, it.sentYoutube) },
@@ -116,6 +118,7 @@ class Backup(
                 autoCacheMb = b.autoCacheMb, waveMood = b.waveMood, waveDiversity = b.waveDiversity,
                 ytProxyEnabled = b.ytProxyEnabled, ytProxyType = b.ytProxyType, ytProxyHost = b.ytProxyHost, ytProxyPort = b.ytProxyPort,
                 liquidGlass = b.liquidGlass, palette = b.palette, coverTheme = b.coverTheme,
+                waveSource = b.waveSource, waveLanguage = b.waveLanguage,
             )
         }
         RestoreResult(fresh.size, addedFavs, addedStats)

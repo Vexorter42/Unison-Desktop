@@ -19,6 +19,11 @@ enum class Quality(val label: String) {
 }
 
 @Serializable
+enum class WaveSource(val label: String) {
+    YANDEX("Яндекс"), YOUTUBE("YouTube"), VK("ВК"),
+}
+
+@Serializable
 data class AppSettings(
     val yandexToken: String? = null,
     val yandexUid: Long? = null,
@@ -36,6 +41,8 @@ data class AppSettings(
     val quality: Quality = Quality.HIGH,
     val waveMood: String = "all",
     val waveDiversity: String = "default",
+    val waveSource: WaveSource = WaveSource.YANDEX,
+    val waveLanguage: String = "any",
     /** Громкость 0..100 — запоминается между запусками. */
     val volume: Int = 80,
     /** Индекс палитры из ui.theme.Palettes. */

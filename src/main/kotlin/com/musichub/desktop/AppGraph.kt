@@ -78,7 +78,7 @@ class AppGraph {
     /** null — не нашёлся VLC: интерфейс покажет, что делать. Ленивый: VLC запускается в фоне, уже после показа окна. */
     val engine: PlaybackEngine? by lazy {
         Vlc.createFactory()?.let { factory ->
-            PlaybackEngine(factory, settings, resolver, proxy, yandex, youtube, favorites, stats)
+            PlaybackEngine(factory, settings, resolver, proxy, yandex, vk, youtube, favorites, stats)
         }
     }
 }

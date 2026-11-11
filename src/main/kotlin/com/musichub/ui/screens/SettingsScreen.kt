@@ -90,7 +90,7 @@ fun SettingsScreen() {
         Text("Аккаунты и настройки", fontSize = 32.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(20.dp))
 
-        Section("Аккаунты", initiallyExpanded = true) {
+        Section("Аккаунты") {
             AccountCard(
                 title = "Яндекс Музыка",
                 loggedInAs = s.yandexLogin?.let { "Вход выполнен: $it" }.takeIf { s.yandexLoggedIn },
@@ -154,7 +154,7 @@ fun SettingsScreen() {
             )
         }
 
-        Section("Поиск и воспроизведение") {
+        Section("Поиск и воспроизведение", initiallyExpanded = true) {
             Toggle("Искать на YouTube", s.searchYoutube) { v -> set { it.copy(searchYoutube = v) } }
             Toggle("Искать во ВКонтакте", s.searchVk) { v -> set { it.copy(searchVk = v) } }
             Toggle("Искать на SoundCloud", s.searchSoundcloud, note = "Ремиксы, демо и треки, которых нет в других сервисах. Без входа") { v ->
@@ -194,7 +194,7 @@ fun SettingsScreen() {
             }
         }
 
-        Section("Оформление") {
+        Section("Оформление", initiallyExpanded = true) {
             Toggle("Liquid Glass", s.liquidGlass, note = "Стекло с преломлением, живой фон и пузырь-индикатор — как в Android-версии") { v ->
                 set { it.copy(liquidGlass = v) }
             }

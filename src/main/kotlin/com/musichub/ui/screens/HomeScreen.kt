@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.ui.LocalEngine
 import com.musichub.ui.LocalGraph
+import com.musichub.data.WaveSource
 import com.musichub.ui.PrimaryPill
 import com.musichub.ui.SectionTitle
 import com.musichub.ui.TrackRow
@@ -94,6 +96,9 @@ private val diversities = listOf(
     Diversity("popular", "Популярное", Icons.Rounded.Whatshot),
 )
 
+private data class WaveLanguage(val value: String, val label: String)
+private val waveLanguages = listOf(WaveLanguage("any", "Любой"), WaveLanguage("russian", "Русский"), WaveLanguage("not-russian", "Иностранный"))
+
 /**
  * Главная, как в Android-версии: Моя волна на весь экран — живой фон в цветах настроения, большая кнопка
  * с пульсом, пока играет, ниже — настроения карточками с иконками и характер волны.
@@ -104,14 +109,27 @@ fun HomeScreen(openSettings: () -> Unit) {
     val engine = LocalEngine.current
     val settings by graph.settings.flow.collectAsState()
     val state by engine.state.collectAsState()
-    val waveOn = state.waveMode && state.radioTitle == "Моя волна"
+    var filtersExpanded by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val waveSelected = state.waveMode && state.radioTitle == "Моя волна" && state.waveSource == settings.waveSource
+    val waveOn = waveSelected && state.isPlaying
 
     fun applyWaveSettings(mood: String, diversity: String) = graph.scope.launch {
         graph.settings.update { it.copy(waveMood = mood, waveDiversity = diversity) }
-        val r = runCatching { graph.yandex.setWaveSettings(mood, diversity) }
-        // Новые настройки волны действуют на следующие треки — перезапускаем, если волна уже играет
-        if (r.isSuccess && waveOn) engine.startWave()
-        r.exceptionOrNull()?.let { engine.notify("Настройки волны: ${it.message}") }
+        if (waveSelected && settings.waveSource == WaveSource.YANDEX) engine.startWave()
+    }
+
+    fun applyWaveLanguage(language: String) = graph.scope.launch {
+        if (settings.waveLanguage == language) return@launch
+        graph.settings.update { it.copy(waveLanguage = language) }
+        if (waveSelected && settings.waveSource == WaveSource.YANDEX) engine.startWave()
+    }
+
+    fun selectWaveSource(source: WaveSource) = graph.scope.launch {
+        if (source == settings.waveSource) return@launch
+        if (source == WaveSource.YANDEX && !settings.yandexLoggedIn) { openSettings(); return@launch }
+        if (source == WaveSource.VK && !settings.vkLoggedIn) { openSettings(); return@launch }
+        graph.settings.update { it.copy(waveSource = source) }
+        engine.startWave()
     }
 
     val moodIndex = moods.indexOfFirst { it.value == settings.waveMood }.coerceAtLeast(0)
@@ -121,16 +139,33 @@ fun HomeScreen(openSettings: () -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 24.dp)) {
         WaveHero(
             mood = mood,
-            subtitle = "${mood.label} · ${diversity.label}",
+            subtitle = if (settings.waveSource == WaveSource.YANDEX) "Яндекс · ${mood.label} · ${diversity.label}" else settings.waveSource.label,
+            loginLabel = if (settings.waveSource == WaveSource.VK) "ВКонтакте" else "Яндекс",
             playing = waveOn && state.isPlaying,
-            nowPlaying = state.track?.takeIf { waveOn }?.let { "${it.artists} — ${it.title}" },
-            loggedIn = settings.yandexLoggedIn,
+            nowPlaying = state.track?.takeIf { waveSelected }?.let { "${it.artists} — ${it.title}" },
+            loggedIn = when (settings.waveSource) {
+                WaveSource.YANDEX -> settings.yandexLoggedIn
+                WaveSource.YOUTUBE -> true
+                WaveSource.VK -> settings.vkLoggedIn
+            },
             sphereMotion = settings.sphereMotion,
             bass = { if (waveOn) engine.bassLevel else 0f },
-            onPlay = { if (waveOn) engine.togglePlay() else engine.startWave() },
+            onPlay = { if (waveSelected) engine.togglePlay() else engine.startWave() },
             onLogin = openSettings,
         ) {
-            if (settings.yandexLoggedIn) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            ) {
+                WaveSource.entries.forEach { source ->
+                    com.musichub.ui.GlassChip(source.label, selected = settings.waveSource == source) { selectWaveSource(source) }
+                }
+                com.musichub.ui.GlassChip(if (filtersExpanded) "Скрыть настройки" else "Настроить", selected = filtersExpanded) {
+                    filtersExpanded = !filtersExpanded
+                }
+            }
+            if (settings.waveSource == WaveSource.YANDEX && filtersExpanded) {
+                Text("Настроение", color = Color.White.copy(alpha = 0.72f), fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp, top = 4.dp))
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
@@ -139,12 +174,24 @@ fun HomeScreen(openSettings: () -> Unit) {
                         MoodCard(m, selected = i == moodIndex) { applyWaveSettings(m.value, settings.waveDiversity) }
                     }
                 }
+                Text("Характер подбора", color = Color.White.copy(alpha = 0.72f), fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp, top = 6.dp))
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                 ) {
                     diversities.forEach { d ->
                         DiversityChip(d, selected = d.value == settings.waveDiversity) { applyWaveSettings(settings.waveMood, d.value) }
+                    }
+                }
+                Text("Язык треков", color = Color.White.copy(alpha = 0.72f), fontSize = 12.sp, modifier = Modifier.padding(start = 24.dp, top = 6.dp))
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                ) {
+                    waveLanguages.forEach { language ->
+                        com.musichub.ui.GlassChip(language.label, selected = settings.waveLanguage == language.value) {
+                            applyWaveLanguage(language.value)
+                        }
                     }
                 }
             }
@@ -165,6 +212,7 @@ fun HomeScreen(openSettings: () -> Unit) {
 private fun WaveHero(
     mood: Mood,
     subtitle: String,
+    loginLabel: String,
     playing: Boolean,
     nowPlaying: String?,
     loggedIn: Boolean,
@@ -236,12 +284,12 @@ private fun WaveHero(
                     )
                 } else {
                     Text(
-                        "Войдите в Яндекс, чтобы слушать Мою волну",
+                        "Войдите в $loginLabel, чтобы слушать рекомендации",
                         color = Color.White.copy(alpha = 0.85f),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(bottom = 12.dp),
                     )
-                    PrimaryPill("Войти в Яндекс", null, onClick = onLogin)
+                    PrimaryPill("Войти в $loginLabel", null, onClick = onLogin)
                 }
             }
             controls()
