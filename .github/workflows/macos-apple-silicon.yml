@@ -33,7 +33,10 @@ jobs:
           test "$(uname -m)" = arm64
           bash scripts/create-macos-icon.sh
           chmod +x gradlew
-          ./gradlew packageDmg --console=plain
+          if ! ./gradlew packageDmg --console=plain; then
+            find build/compose/logs -type f -maxdepth 4 -print -exec cat {} \;
+            exit 1
+          fi
           dmg=$(find build/compose/binaries/main/dmg -maxdepth 1 -name '*.dmg' -print -quit)
           test -n "$dmg"
           mkdir -p dist
