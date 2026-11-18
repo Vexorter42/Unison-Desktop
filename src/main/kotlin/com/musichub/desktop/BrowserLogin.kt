@@ -135,7 +135,7 @@ class BrowserLogin(http: OkHttpClient) {
                 try {
                     withTimeout(timeoutMs) {
                         while (window.isAlive) {
-                            if (BrowserWindows.titles(window.pid()).any { doneTitle in it }) {
+                            if (isWindows && BrowserWindows.titles(window.pid()).any { doneTitle in it }) {
                                 delay(2000) // сайт дописывает cookie после перехода
                                 BrowserWindows.close(window.pid())
                                 break
@@ -144,7 +144,7 @@ class BrowserLogin(http: OkHttpClient) {
                         }
                     }
                 } finally {
-                    if (window.isAlive) BrowserWindows.close(window.pid())
+                    if (window.isAlive && isWindows) BrowserWindows.close(window.pid())
                     stop(window)
                 }
                 val headless = startBrowser(profile, "--headless=new", "--remote-debugging-port=0", "about:blank")
@@ -211,6 +211,15 @@ class BrowserLogin(http: OkHttpClient) {
     }
 
     private fun findBrowser(): File? {
+        if (!isWindows) {
+            val home = System.getProperty("user.home")
+            return listOf(
+                "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "$home/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                "$home/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            ).map(::File).firstOrNull { it.isFile }
+        }
         val pf = System.getenv("ProgramFiles") ?: "C:\\Program Files"
         val pf86 = System.getenv("ProgramFiles(x86)") ?: "C:\\Program Files (x86)"
         val local = System.getenv("LOCALAPPDATA").orEmpty()
@@ -226,6 +235,7 @@ class BrowserLogin(http: OkHttpClient) {
     }
 
     companion object {
+        private val isWindows = System.getProperty("os.name").orEmpty().startsWith("Windows")
         /** Вход в Google с возвратом на YouTube Music — после него у .youtube.com появляется SAPISID. */
         const val YOUTUBE_LOGIN_URL = "https://accounts.google.com/ServiceLogin?service=youtube&passive=true&hl=ru" +
             "&continue=https%3A%2F%2Fwww.youtube.com%2Fsignin%3Faction_handle_signin%3Dtrue%26app%3Ddesktop%26next%3Dhttps%253A%252F%252Fmusic.youtube.com%252F"

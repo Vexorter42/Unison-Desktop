@@ -8,7 +8,7 @@ plugins {
 }
 
 // Версию поднимает scripts/release.sh; приложение сравнивает её с последним релизом на GitHub
-val appVersion = "0.1.9"
+val appVersion = "0.1.10"
 
 kotlin {
     jvmToolchain(21)
@@ -63,7 +63,7 @@ compose.desktop {
         jvmArgs += listOf("-Dfile.encoding=UTF-8", "-Xmx512m", "-Dunison.version=$appVersion")
 
         nativeDistributions {
-            targetFormats(TargetFormat.Msi, TargetFormat.Exe)
+            targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Dmg)
             packageName = "Unison"
             packageVersion = appVersion
             // Только ASCII: MSI собирается в кодовой странице 1252, кириллица ломает WiX (LGHT0311)
@@ -71,7 +71,7 @@ compose.desktop {
             vendor = "Vexorter42"
             copyright = "GPL-3.0"
             licenseFile.set(rootProject.file("LICENSE"))
-            appResourcesRootDir.set(vlcResources)
+            if (System.getProperty("os.name").startsWith("Windows")) appResourcesRootDir.set(vlcResources)
             modules("java.instrument", "java.management", "java.naming", "java.net.http", "java.scripting", "java.sql",
                 "jdk.crypto.ec", "jdk.httpserver", "jdk.unsupported", "jdk.zipfs", "jdk.accessibility")
 
@@ -85,13 +85,19 @@ compose.desktop {
                 // Постоянный код обновления: новая версия ставится поверх старой
                 upgradeUuid = "6f3c2d0e-8a4b-4f1e-9a57-2b6c1d7e5a31"
             }
+            macOS {
+                bundleID = "com.vexorter42.unison"
+                iconFile.set(project.file("icons/unison.icns"))
+            }
         }
     }
 }
 
 afterEvaluate {
-    tasks.matching { it.name.startsWith("package") || it.name.startsWith("createDistributable") || it.name == "prepareAppResources" }
-        .configureEach { dependsOn(prepareVlc) }
+    if (System.getProperty("os.name").startsWith("Windows")) {
+        tasks.matching { it.name.startsWith("package") || it.name.startsWith("createDistributable") || it.name == "prepareAppResources" }
+            .configureEach { dependsOn(prepareVlc) }
+    }
 }
 
 // Живая проверка без интерфейса: ./gradlew smokeCheck -Pquery="Кино Группа крови"
@@ -119,6 +125,14 @@ tasks.register<JavaExec>("startupCheck") {
     mainClass.set("com.musichub.StartupCheckKt")
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
     systemProperty("compose.application.resources.dir", vlcResources.get().dir("windows").asFile.absolutePath)
+}
+
+// Проверяет, что установленный VLC доступен на Mac без Windows-ресурсов.
+tasks.register<JavaExec>("macVlcCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.StartupCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
 }
 
 // Скриншоты экранов без звука и без изменения настроек: build/shots

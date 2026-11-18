@@ -19,6 +19,9 @@ enum class Quality(val label: String) {
 }
 
 @Serializable
+enum class LikeTarget(val label: String) { UNISON("Только Unison"), YANDEX("Яндекс"), YOUTUBE("YouTube Music"), VK("ВК · Моя музыка") }
+
+@Serializable
 enum class WaveSource(val label: String) {
     YANDEX("Яндекс"), YOUTUBE("YouTube"), VK("ВК"),
 }
@@ -38,6 +41,7 @@ data class AppSettings(
     val fallbackToOthers: Boolean = true,
     /** Обычная очередь доиграла — продолжить похожими треками на последний. */
     val autoContinueSimilar: Boolean = false,
+    val likeTarget: LikeTarget = LikeTarget.UNISON,
     val quality: Quality = Quality.HIGH,
     val waveMood: String = "all",
     val waveDiversity: String = "default",

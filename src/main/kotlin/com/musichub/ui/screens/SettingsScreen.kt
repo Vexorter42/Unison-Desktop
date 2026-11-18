@@ -134,7 +134,9 @@ fun SettingsScreen() {
                 title = "YouTube Music",
                 loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
                 hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
-                    "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
+                    if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
+                        "Откроется отдельное окно браузера: войдите в Google. Когда откроется YouTube Music, закройте это окно, чтобы Unison прочитал cookie."
+                    else "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
                 browserLogin = {
                     val all = graph.browserLogin.loginAndReadCookies(BrowserLogin.YOUTUBE_LOGIN_URL, doneTitle = "YouTube Music")
                     BrowserLogin.youtubeCookie(all).also { if ("SAPISID=" !in it) error("Вход в Google не завершён — попробуйте ещё раз") }
@@ -156,6 +158,14 @@ fun SettingsScreen() {
         }
 
         Section("Поиск и воспроизведение", initiallyExpanded = true) {
+            Text("Лайки: «Любимое Unison» и выбранный сервис", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                com.musichub.data.LikeTarget.entries.forEach { target ->
+                    GlassChip(target.label, s.likeTarget == target) { set { it.copy(likeTarget = target) } }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             Toggle("Искать на YouTube", s.searchYoutube) { v -> set { it.copy(searchYoutube = v) } }
             Toggle("Искать во ВКонтакте", s.searchVk) { v -> set { it.copy(searchVk = v) } }
             Toggle("Искать на SoundCloud", s.searchSoundcloud, note = "Ремиксы, демо и треки, которых нет в других сервисах. Без входа") { v ->

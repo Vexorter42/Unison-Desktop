@@ -2,7 +2,7 @@
 
 <img src="docs/logo.png" width="112" alt="Unison logo" />
 
-# Unison для Windows
+# Unison для Windows и Mac
 
 **Яндекс Музыка, YouTube, SoundCloud и ВКонтакте — в одном плеере на компьютере.**<br/>
 Моя волна, единый поиск, перенос плейлистов, синхронные тексты и Liquid Glass.
@@ -11,11 +11,12 @@
 [![Downloads](https://img.shields.io/github/downloads/Vexorter42/Unison-Desktop/total?style=flat-square&labelColor=0d0d10&color=4d71ff)](https://github.com/Vexorter42/Unison-Desktop/releases)
 [![Поддержать Unison на DonationAlerts](https://img.shields.io/badge/DonationAlerts-Поддержать%20Unison-F57D07?style=flat-square&logo=heart&logoColor=white)](https://www.donationalerts.com/r/nick556655)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&labelColor=0d0d10&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=flat-square&labelColor=0d0d10&logo=apple&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7f52ff?style=flat-square&labelColor=0d0d10&logo=kotlin&logoColor=white)
 ![Compose](https://img.shields.io/badge/Compose%20Multiplatform-1.12-4285f4?style=flat-square&labelColor=0d0d10&logo=jetpackcompose&logoColor=white)
 [![License](https://img.shields.io/badge/license-GPL--3.0-2ec4b6?style=flat-square&labelColor=0d0d10)](LICENSE)
 
-[**Скачать для Windows**](https://github.com/Vexorter42/Unison-Desktop/releases/latest) · [Возможности](#возможности) · [Liquid Glass](#liquid-glass) · [Установка](#установка) · [Обновления](#обновления) · [Сборка](#сборка-из-исходников) · [Unison для Android](https://github.com/Vexorter42/Unison)
+[**Скачать для Windows и Mac**](https://github.com/Vexorter42/Unison-Desktop/releases/latest) · [Возможности](#возможности) · [Liquid Glass](#liquid-glass) · [Установка](#установка) · [Обновления](#обновления) · [Сборка](#сборка-из-исходников) · [Unison для Android](https://github.com/Vexorter42/Unison)
 
 <br/>
 
@@ -67,11 +68,21 @@
 
 ## Установка
 
+### Windows
+
 1. Скачайте `Unison-Desktop-x.y.z.msi` (или `.exe`) из [последнего релиза](https://github.com/Vexorter42/Unison-Desktop/releases/latest).
 2. Запустите. Установщик не подписан, поэтому Windows может показать «Windows защитила ваш компьютер» — нажмите **«Подробнее» → «Выполнить в любом случае»**.
 3. Настройки → войдите в Яндекс и, по желанию, во ВКонтакте и YouTube Music.
 
 Права администратора не нужны: Unison ставится в профиль пользователя. VLC уже внутри — отдельно ставить ничего не надо.
+
+### Mac с Apple Silicon
+
+1. Скачайте `Unison-Desktop-…-macos-arm64.dmg` из [последнего релиза](https://github.com/Vexorter42/Unison-Desktop/releases/latest).
+2. Откройте DMG и перенесите Unison в «Программы». Пакет пока не подписан Apple Developer ID: при первом запуске откройте приложение через **Control + клик → Открыть** или разрешите запуск в **Системные настройки → Конфиденциальность и безопасность**.
+3. Установите [VLC для Mac с Apple Silicon](https://www.videolan.org/vlc/download-macosx.html) в «Программы»: Unison использует его библиотеки для воспроизведения. Затем запустите Unison.
+
+Для входа через браузер нужен Chrome или Edge. Вход в YouTube Music на Mac завершите закрытием отдельного окна браузера после открытия YouTube Music; если автоматическое чтение cookie не сработало, воспользуйтесь ручным входом в настройках.
 
 > **Яндекс Музыка:** полные треки — с подпиской Плюс. Без неё Яндекс отдаёт превью, и Unison играет трек с YouTube.
 >
@@ -81,9 +92,9 @@
 
 ## Обновления
 
-Unison проверяет [релизы этого репозитория](https://github.com/Vexorter42/Unison-Desktop/releases) при запуске и раз в 12 часов. Когда выходит новая версия, внизу боковой панели появляется **«Обновить»**: установщик скачивается, Unison закрывается, новая версия ставится поверх и запускается сама. Проверить вручную — Настройки → Обновления.
+Unison проверяет [релизы этого репозитория](https://github.com/Vexorter42/Unison-Desktop/releases) при запуске и раз в 12 часов. Когда выходит новая версия, внизу боковой панели появляется **«Обновить»**. На Windows установщик скачивается и ставится поверх; на Mac открывается DMG, из которого нужно перенести новую версию в «Программы». Проверить вручную — Настройки → Обновления.
 
-Настройки, вход в аккаунты и «Любимое» хранятся отдельно, в `%APPDATA%\Unison`, и при обновлении не трогаются.
+Настройки, вход в аккаунты и «Любимое» хранятся отдельно: в `%APPDATA%\Unison` на Windows и `~/.unison` на Mac.
 
 ## Архитектура
 
@@ -126,7 +137,7 @@ src/main/kotlin/com/musichub/
 
 ## Сборка из исходников
 
-Нужны JDK 21 и установленный [VLC](https://www.videolan.org/vlc/) 3.x (64-bit) — из него в установщик копируются libvlc и аудиоплагины.
+Нужны JDK 21 и установленный [VLC](https://www.videolan.org/vlc/) 3.x. В Windows установщик копирует из VLC libvlc и аудиоплагины; на Mac приложение использует VLC из папки «Программы».
 
 ```bash
 git clone https://github.com/Vexorter42/Unison-Desktop.git
@@ -134,6 +145,15 @@ cd Unison-Desktop
 ./gradlew run                       # запустить
 ./gradlew packageMsi packageExe     # установщики → build/compose/binaries/main/{msi,exe}
 ```
+
+На Mac с Apple Silicon:
+
+```bash
+bash scripts/create-macos-icon.sh
+./gradlew packageDmg              # → build/compose/binaries/main/dmg
+```
+
+Сборка для Mac выполняется на Mac. Workflow `macOS Apple Silicon` в GitHub Actions собирает DMG на arm64 runner и по указанному тегу добавляет его к существующему релизу.
 
 VLC не в `C:/Program Files/VideoLAN/VLC`? Укажите путь: `-PvlcDir=D:/VLC`.
 

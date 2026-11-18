@@ -361,15 +361,18 @@ private fun UpdateCard(collapsed: Boolean) {
         } else {
             Text("Скачиваю… ${(progress * 100).toInt()}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (update.openedDmg) {
+            Text("DMG открыт. Перенесите Unison в «Программы» и запустите новую версию.",
+                fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         update.error?.let { Text(it, fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
     }
 }
 
-/** Скачать установщик, запустить его и закрыться: после установки Unison откроется сам. */
+/** Скачать установщик текущей платформы и открыть его. Windows закрывается для замены файлов. */
 fun installUpdate(graph: AppGraph, release: Release) {
     graph.scope.launch {
-        val msi = runCatching { graph.updater.download(release) }.getOrNull() ?: return@launch
-        graph.updater.installAndRestart(msi)
-        graph.requestExit()
+        val installer = runCatching { graph.updater.download(release) }.getOrNull() ?: return@launch
+        if (graph.updater.installAndRestart(installer)) graph.requestExit()
     }
 }

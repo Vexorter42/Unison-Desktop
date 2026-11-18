@@ -128,10 +128,15 @@ private fun NoVlcScreen() {
         ) {
             Text("Не найден VLC", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text(
-                "Unison играет музыку через libVLC. Установите VLC media player (64-bit) и перезапустите приложение.",
+                if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
+                    "Unison играет музыку через libVLC. Установите VLC для Mac с Apple Silicon в папку «Программы» и перезапустите Unison."
+                else "Unison играет музыку через libVLC. Установите VLC media player (64-bit) и перезапустите приложение.",
                 color = Color(0xFF9A9AA6),
             )
-            GlassButton("Скачать VLC", onClick = { openInBrowser("https://www.videolan.org/vlc/") })
+            GlassButton("Скачать VLC", onClick = {
+                openInBrowser(if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
+                    "https://www.videolan.org/vlc/download-macosx.html" else "https://www.videolan.org/vlc/")
+            })
         }
     }
 }

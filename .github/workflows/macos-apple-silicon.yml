@@ -1,0 +1,50 @@
+name: macOS Apple Silicon
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to upload DMG to (leave empty for build check)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check native VLC on Apple Silicon
+        run: |
+          brew install --cask vlc
+          chmod +x gradlew
+          ./gradlew macVlcCheck --console=plain
+      - name: Build Apple Silicon DMG
+        run: |
+          test "$(uname -m)" = arm64
+          bash scripts/create-macos-icon.sh
+          chmod +x gradlew
+          ./gradlew packageDmg --console=plain
+          dmg=$(find build/compose/binaries/main/dmg -maxdepth 1 -name '*.dmg' -print -quit)
+          test -n "$dmg"
+          mkdir -p dist
+          cp "$dmg" "dist/Unison-Desktop-${{ inputs.release_tag || 'build' }}-macos-arm64.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unison-macos-arm64
+          path: dist/*.dmg
+          if-no-files-found: error
+      - name: Add DMG to release
+        if: ${{ inputs.release_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release_tag }}" dist/*.dmg --clobber

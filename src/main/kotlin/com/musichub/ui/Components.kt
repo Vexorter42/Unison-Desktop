@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
@@ -24,9 +25,14 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -355,12 +361,24 @@ fun TrackRow(
         }
         Box {
             GlassIconButton(Icons.Rounded.MoreHoriz, "Ещё", onClick = { menu = true }, size = 32.dp, iconSize = 18.dp)
-            DropdownMenu(menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text("Играть следующим") }, onClick = { menu = false; engine.playNext(track) })
-                DropdownMenuItem(text = { Text("Добавить в очередь") }, onClick = { menu = false; engine.enqueue(track) })
-                DropdownMenuItem(text = { Text("Похожие треки") }, onClick = { menu = false; graph.pendingSimilar.value = track })
-                DropdownMenuItem(text = { Text("Искать исполнителя") }, onClick = { menu = false; graph.pendingSearch.value = track.artists })
-                DropdownMenuItem(text = { Text("Радио по треку") }, onClick = { menu = false; engine.startRadio(track) })
+            DropdownMenu(menu, onDismissRequest = { menu = false }, modifier = Modifier.widthIn(min = 230.dp).background(glassFill(strong = true), RoundedCornerShape(16.dp))) {
+                Text("ДЕЙСТВИЯ С ТРЕКОМ", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = accent, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                if (track.alternates.isNotEmpty()) {
+                    Text("Играть из", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    (listOf(com.musichub.data.model.TrackRef(track.source, track.sourceId)) + track.alternates).distinctBy { it.source }.forEach { ref ->
+                        DropdownMenuItem(
+                            text = { Text(ref.source.label) }, leadingIcon = { SourceBadge(ref.source) },
+                            onClick = { menu = false; engine.playFromSource(track, track.fromSource(ref)) },
+                        )
+                    }
+                    HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                }
+                DropdownMenuItem(text = { Text("Играть следующим") }, leadingIcon = { Icon(Icons.Rounded.PlayArrow, null) }, onClick = { menu = false; engine.playNext(track) })
+                DropdownMenuItem(text = { Text("Добавить в очередь") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { menu = false; engine.enqueue(track) })
+                HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                DropdownMenuItem(text = { Text("Похожие треки") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null) }, onClick = { menu = false; graph.pendingSimilar.value = track })
+                DropdownMenuItem(text = { Text("Искать исполнителя") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; graph.pendingSearch.value = track.artists })
+                DropdownMenuItem(text = { Text("Радио по треку") }, leadingIcon = { Icon(Icons.Rounded.Radio, null) }, onClick = { menu = false; engine.startRadio(track) })
             }
         }
     }

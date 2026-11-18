@@ -6,6 +6,7 @@ import com.musichub.search.TrackMatcher
 import com.musichub.yandex.YandexApi
 import com.musichub.youtube.YouTubeApi
 import com.musichub.youtube.YtMusicApi
+import com.musichub.vk.VkApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,13 +32,14 @@ data class FavoriteTrack(
 data class SendResult(val sent: Int, val notFound: List<Track>)
 
 /**
- * «Любимое Unison» — собственный плейлист приложения (favorites.json). Сердечко кладёт трек сюда и никуда больше;
- * в Яндекс или YouTube лайки уходят только по кнопке «Отправить».
+ * «Любимое Unison» — собственный плейлист приложения (favorites.json). По выбору пользователя
+ * новый лайк дополнительно отправляется в Яндекс или YouTube Music.
  */
 class Favorites(
     private val yandex: YandexApi,
     private val youtube: YouTubeApi,
     private val ytMusic: YtMusicApi,
+    private val vk: VkApi,
     private val file: File = File(AppDirs.root, "favorites.json"),
 ) {
     private val serializer = ListSerializer(FavoriteTrack.serializer())
@@ -60,6 +62,32 @@ class Favorites(
         } else {
             add(listOf(track))
             true
+        }
+    }
+
+    /** Отправляет один новый лайк в выбранный сервис. */
+    suspend fun syncLike(track: Track, target: LikeTarget): Boolean = when (target) {
+        LikeTarget.UNISON -> true
+        LikeTarget.YANDEX -> {
+            val found = if (track.source == Source.YANDEX) track else findOnYandex(track)
+            val sent = found != null && runCatching { yandex.setLiked(found, true) }.isSuccess
+            if (sent) edit { rows -> rows.map { if (it.key == track.key) it.copy(sentYandex = true) else it } }
+            sent
+        }
+        LikeTarget.YOUTUBE -> {
+            val id = if (track.source == Source.YOUTUBE) track.sourceId else
+                track.alternates.firstOrNull { it.source == Source.YOUTUBE }?.sourceId
+                    ?: runCatching { youtube.findMatch(track)?.sourceId }.getOrNull()
+            val sent = id != null && runCatching { ytMusic.like(id) }.isSuccess
+            if (sent) edit { rows -> rows.map { if (it.key == track.key) it.copy(sentYoutube = true) else it } }
+            sent
+        }
+        LikeTarget.VK -> {
+            val found = if (track.source == Source.VK) track else runCatching {
+                val query = TrackMatcher.splitYoutube(track)
+                TrackMatcher.best(query, vk.search("${query.artists} ${query.title}"), threshold = 0.65)
+            }.getOrNull()
+            found != null && runCatching { vk.add(found) }.isSuccess
         }
     }
 

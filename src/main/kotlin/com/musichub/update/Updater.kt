@@ -16,21 +16,22 @@ import java.io.File
 import java.io.IOException
 
 /** Новая версия из GitHub Releases. */
-data class Release(val version: String, val notes: String, val msiUrl: String, val size: Long)
+data class Release(val version: String, val notes: String, val installerUrl: String, val extension: String, val size: Long)
 
 data class UpdateState(
     val checking: Boolean = false,
     val available: Release? = null,
     /** 0..1, пока качается установщик. */
     val progress: Float? = null,
+    /** На Mac диск открыт; остаётся перенести приложение в «Программы». */
+    val openedDmg: Boolean = false,
     /** Проверка прошла, новее нет. */
     val upToDate: Boolean = false,
     val error: String? = null,
 )
 
 /**
- * Обновления через GitHub Releases этого репозитория: последний релиз с .msi новее установленной версии —
- * скачиваем его и ставим поверх (тот же upgradeUuid), после установки Unison запускается снова.
+ * Обновления через GitHub Releases: выбираем установщик текущей платформы.
  */
 class Updater(private val http: OkHttpClient) {
     /** Версия из сборки (-Dunison.version); у запуска из исходников её нет — тогда не обновляемся. */
@@ -43,7 +44,7 @@ class Updater(private val http: OkHttpClient) {
 
     suspend fun check() {
         if (_state.value.checking || _state.value.progress != null) return
-        _state.update { it.copy(checking = true, error = null, upToDate = false) }
+        _state.update { it.copy(checking = true, error = null, upToDate = false, openedDmg = false) }
         val result = runCatching { withContext(Dispatchers.IO) { latest() } }
         _state.update { s ->
             result.fold(
@@ -62,13 +63,15 @@ class Updater(private val http: OkHttpClient) {
             if (!resp.isSuccessful) throw IOException("GitHub ответил ${resp.code}")
             json.parseToJsonElement(resp.body!!.string()).jsonObject
         }
-        val msi = root["assets"]?.jsonArray?.map { it.jsonObject }
-            ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(".msi") == true } ?: return null
+        val extension = if (isMac) ".dmg" else ".msi"
+        val installer = root["assets"]?.jsonArray?.map { it.jsonObject }
+            ?.firstOrNull { it["name"]?.jsonPrimitive?.content?.endsWith(extension, ignoreCase = true) == true } ?: return null
         return Release(
             version = root["tag_name"]!!.jsonPrimitive.content.removePrefix("v"),
             notes = root["body"]?.jsonPrimitive?.content.orEmpty(),
-            msiUrl = msi["browser_download_url"]!!.jsonPrimitive.content,
-            size = msi["size"]?.jsonPrimitive?.long ?: 0,
+            installerUrl = installer["browser_download_url"]!!.jsonPrimitive.content,
+            extension = extension,
+            size = installer["size"]?.jsonPrimitive?.long ?: 0,
         )
     }
 
@@ -76,8 +79,8 @@ class Updater(private val http: OkHttpClient) {
     suspend fun download(release: Release): File = withContext(Dispatchers.IO) {
         _state.update { it.copy(progress = 0f, error = null) }
         try {
-            val file = File(System.getProperty("java.io.tmpdir"), "Unison-${release.version}.msi")
-            http.newCall(Request.Builder().url(release.msiUrl).build()).execute().use { resp ->
+            val file = File(System.getProperty("java.io.tmpdir"), "Unison-${release.version}${release.extension}")
+            http.newCall(Request.Builder().url(release.installerUrl).build()).execute().use { resp ->
                 if (!resp.isSuccessful) throw IOException("GitHub ответил ${resp.code}")
                 val body = resp.body!!
                 val total = body.contentLength().takeIf { it > 0 } ?: release.size
@@ -107,7 +110,13 @@ class Updater(private val http: OkHttpClient) {
      * Запускает установку и перезапуск отдельным скриптом: сам Unison должен сразу закрыться,
      * иначе установщик не сможет заменить его файлы.
      */
-    fun installAndRestart(msi: File) {
+    fun installAndRestart(installer: File): Boolean {
+        if (isMac) {
+            // DMG открывается в Finder: пользователь переносит Unison в «Программы».
+            ProcessBuilder("open", installer.absolutePath).start()
+            _state.update { it.copy(progress = null, openedDmg = true) }
+            return false
+        }
         val app = System.getProperty("jpackage.app-path")
         val script = File(System.getProperty("java.io.tmpdir"), "unison-update.cmd")
         script.writeText(
@@ -115,17 +124,19 @@ class Updater(private val http: OkHttpClient) {
                 appendLine("@echo off")
                 appendLine("chcp 65001 >nul")
                 appendLine("timeout /t 2 /nobreak >nul")
-                appendLine("msiexec /i \"${msi.path}\" /passive /norestart")
+                appendLine("msiexec /i \"${installer.path}\" /passive /norestart")
                 if (app != null) appendLine("if %errorlevel%==0 start \"\" \"$app\"")
-                appendLine("del \"${msi.path}\"")
+                appendLine("del \"${installer.path}\"")
                 appendLine("(goto) 2>nul & del \"%~f0\"")
             }.replace("\n", "\r\n"),
             Charsets.UTF_8,
         )
         ProcessBuilder("cmd", "/c", "start", "\"\"", "/min", script.path).start()
+        return true
     }
 
     companion object {
+        private val isMac = System.getProperty("os.name").orEmpty().startsWith("Mac")
         const val REPO = "Vexorter42/Unison-Desktop"
         const val RELEASES_URL = "https://github.com/$REPO/releases"
         private const val LATEST_URL = "https://api.github.com/repos/$REPO/releases/latest"

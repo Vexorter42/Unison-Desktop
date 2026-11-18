@@ -199,6 +199,14 @@ class PlaybackEngine(
         publish()
     }
 
+    fun playFromSource(original: Track, selected: Track) = post {
+        if (current?.key == original.key) {
+            val index = order.getOrNull(pos) ?: return@post
+            queue = queue.toMutableList().also { it[index] = selected }
+            load(pos)
+        } else playNow(listOf(selected))
+    }
+
     fun enqueue(t: Track) = post {
         if (queue.isEmpty()) return@post playNow(listOf(t))
         queue = queue + t
@@ -497,12 +505,24 @@ class PlaybackEngine(
 
     // ---------- Лайки ----------
 
-    /** Сердечко кладёт трек в «Любимое Unison» (или убирает). В сервисы ничего не уходит. */
+    /** Сердечко всегда обновляет «Любимое Unison» и по желанию отправляет новый лайк в сервис. */
     fun toggleLike(track: Track? = null) {
         val t = track ?: _state.value.track ?: return
         scope.launch {
             val added = favorites.toggle(t)
             _messages.tryEmit(if (added) "Добавлено в «Любимое»" else "Убрано из «Любимого»")
+            if (added) {
+                val target = settings.current.likeTarget
+                if (target != com.musichub.data.LikeTarget.UNISON) {
+                    val loggedIn = when (target) {
+                        com.musichub.data.LikeTarget.YANDEX -> settings.current.yandexLoggedIn
+                        com.musichub.data.LikeTarget.YOUTUBE -> settings.current.ytLoggedIn
+                        com.musichub.data.LikeTarget.VK -> settings.current.vkLoggedIn
+                        com.musichub.data.LikeTarget.UNISON -> true
+                    }
+                    if (!loggedIn || !favorites.syncLike(t, target)) _messages.tryEmit("Лайк сохранён в Unison, но не отправлен в ${target.label}")
+                }
+            }
         }
     }
 

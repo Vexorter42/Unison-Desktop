@@ -53,7 +53,7 @@ class AppGraph {
     val ytMusic = YtMusicApi(http) { settings.current.ytCookie }
     val lyrics = LyricsRepository(http)
     val search = SearchRepository(yandex, vk, youtube, soundcloud, settings)
-    val favorites = Favorites(yandex, youtube, ytMusic)
+    val favorites = Favorites(yandex, youtube, ytMusic, vk)
     val images = ImageLoader(http)
     val myPlaylists = MyPlaylists()
     val stats = PlayStats()
