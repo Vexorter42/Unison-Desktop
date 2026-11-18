@@ -80,6 +80,7 @@ class PlaybackEngine(
      * «Живая сфера»; иначе (или если звуковое устройство не открылось) звук выводит сам VLC.
      */
     private val bassMeter: BassMeter? = if (settings.current.sphereMotion) BassMeter.open(settings.current.volume) else null
+    private var vlcOutputVolume = settings.current.volume
 
     /** Сила басов 0..1 (0, если звук выводит VLC). */
     val bassLevel: Float get() = bassMeter?.level ?: 0f
@@ -167,6 +168,7 @@ class PlaybackEngine(
             override fun error(mediaPlayer: MediaPlayer) = post { if (isCurrentMedia()) onTrackError() }
         })
         scope.launch { tickLoop() }
+        if (bassMeter == null) scope.launch { volumeLoop() }
     }
 
     private fun isCurrentMedia(): Boolean = currentMrl != null && player.media().info()?.mrl() == currentMrl
@@ -673,7 +675,21 @@ class PlaybackEngine(
 
     private fun applyVolume() {
         bassMeter?.setVolume(_state.value.volume)
-        player.audio().setVolume(_state.value.volume)
+        player.audio().setVolume(if (bassMeter != null) _state.value.volume else vlcOutputVolume)
+    }
+
+    /** Когда звук выводит сам VLC, двигаем его громкость небольшими шагами. */
+    private suspend fun volumeLoop() {
+        while (true) {
+            delay(20)
+            val target = _state.value.volume
+            if (vlcOutputVolume != target) {
+                val difference = target - vlcOutputVolume
+                vlcOutputVolume += if (difference > 0) maxOf(1, (difference * 0.18f).toInt())
+                    else minOf(-1, (difference * 0.18f).toInt())
+                player.audio().setVolume(vlcOutputVolume)
+            }
+        }
     }
 
     private suspend fun tickLoop() {
@@ -686,7 +702,8 @@ class PlaybackEngine(
             last = now
             if (playing) {
                 // VLC иногда сбрасывает громкость при старте потока — держим нашу
-                if (player.audio().volume() != _state.value.volume && player.audio().volume() >= 0) applyVolume()
+                val expected = if (bassMeter != null) _state.value.volume else vlcOutputVolume
+                if (player.audio().volume() != expected && player.audio().volume() >= 0) applyVolume()
                 val len = player.status().length()
                 _state.update {
                     it.copy(

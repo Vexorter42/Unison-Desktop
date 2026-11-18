@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -72,6 +73,7 @@ import com.musichub.desktop.AppGraph
 import com.musichub.data.model.Track
 import com.musichub.ui.screens.FavoritesScreen
 import com.musichub.ui.screens.HomeScreen
+import com.musichub.ui.screens.HistoryScreen
 import com.musichub.ui.screens.LibraryScreen
 import com.musichub.ui.screens.SearchScreen
 import com.musichub.ui.screens.SearchState
@@ -90,6 +92,7 @@ private enum class Tab(val title: String, val icon: ImageVector) {
     SEARCH("Поиск", Icons.Rounded.Search),
     LIBRARY("Медиатека", Icons.Rounded.LibraryMusic),
     FAVORITES("Любимое", Icons.Rounded.Favorite),
+    HISTORY("История", Icons.Rounded.History),
     TRANSFER("Перенос", Icons.Rounded.SwapHoriz),
     SETTINGS("Настройки", Icons.Rounded.Settings),
 }
@@ -181,6 +184,7 @@ fun UnisonApp() {
                                     openTransfer = { tab = Tab.TRANSFER },
                                 )
                                 t == Tab.FAVORITES -> FavoritesScreen(onBack = null)
+                                t == Tab.HISTORY -> HistoryScreen()
                                 t == Tab.TRANSFER -> TransferScreen()
                                 else -> SettingsScreen()
                             }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -170,6 +171,10 @@ fun FullPlayer(onBack: () -> Unit) {
                         }
                         Spacer(Modifier.width(12.dp))
                         GlassIconButton(Icons.Rounded.Radio, "Радио по треку", onClick = { engine.startRadio(track) }, tint = muted, size = 44.dp)
+                        Spacer(Modifier.width(12.dp))
+                        GlassIconButton(Icons.Rounded.Share, "Поделиться", onClick = {
+                            engine.notify(if (copyTrackForSharing(track)) "Трек скопирован для отправки" else "Не удалось скопировать трек")
+                        }, tint = muted, size = 44.dp)
                     }
                 }
             }

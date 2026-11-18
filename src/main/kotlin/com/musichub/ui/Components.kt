@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -379,6 +380,10 @@ fun TrackRow(
                 DropdownMenuItem(text = { Text("Похожие треки") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null) }, onClick = { menu = false; graph.pendingSimilar.value = track })
                 DropdownMenuItem(text = { Text("Искать исполнителя") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; graph.pendingSearch.value = track.artists })
                 DropdownMenuItem(text = { Text("Радио по треку") }, leadingIcon = { Icon(Icons.Rounded.Radio, null) }, onClick = { menu = false; engine.startRadio(track) })
+                DropdownMenuItem(text = { Text("Поделиться") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = {
+                    menu = false
+                    engine.notify(if (copyTrackForSharing(track)) "Трек скопирован для отправки" else "Не удалось скопировать трек")
+                })
             }
         }
     }

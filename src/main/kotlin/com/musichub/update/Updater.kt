@@ -118,20 +118,23 @@ class Updater(private val http: OkHttpClient) {
             return false
         }
         val app = System.getProperty("jpackage.app-path")
-        val script = File(System.getProperty("java.io.tmpdir"), "unison-update.cmd")
+        val script = File(System.getProperty("java.io.tmpdir"), "unison-update.ps1")
+        val msiPath = installer.absolutePath.replace("'", "''")
+        val appPath = app?.replace("'", "''")
         script.writeText(
-            buildString {
-                appendLine("@echo off")
-                appendLine("chcp 65001 >nul")
-                appendLine("timeout /t 2 /nobreak >nul")
-                appendLine("msiexec /i \"${installer.path}\" /passive /norestart")
-                if (app != null) appendLine("if %errorlevel%==0 start \"\" \"$app\"")
-                appendLine("del \"${installer.path}\"")
-                appendLine("(goto) 2>nul & del \"%~f0\"")
-            }.replace("\n", "\r\n"),
+            "\uFEFF" + buildString {
+                appendLine("Start-Sleep -Seconds 2")
+                appendLine("${'$'}msi = '$msiPath'")
+                appendLine("${'$'}arguments = '/i \"' + ${'$'}msi + '\" /passive /norestart'")
+                appendLine("${'$'}process = Start-Process -FilePath msiexec.exe -ArgumentList ${'$'}arguments -PassThru -Wait")
+                if (appPath != null) appendLine("if (${'$'}process.ExitCode -eq 0) { Start-Process -FilePath '$appPath' }")
+                appendLine("Remove-Item -LiteralPath ${'$'}msi -ErrorAction SilentlyContinue")
+                appendLine("Remove-Item -LiteralPath ${'$'}PSCommandPath -ErrorAction SilentlyContinue")
+            },
             Charsets.UTF_8,
         )
-        ProcessBuilder("cmd", "/c", "start", "\"\"", "/min", script.path).start()
+        ProcessBuilder("powershell.exe", "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden",
+            "-ExecutionPolicy", "Bypass", "-File", script.path).start()
         return true
     }
 

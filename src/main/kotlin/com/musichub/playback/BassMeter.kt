@@ -35,7 +35,8 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
         private set
 
     @Volatile
-    private var gain = curve(initialVolume / 100f)
+    private var targetGain = curve(initialVolume / 100f)
+    private var smoothGain = targetGain
 
     private var input = ByteArray(0)
     private var output = ByteArray(0)
@@ -51,11 +52,11 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
         samples.read(0, input, 0, bytes)
         blocks++
         measure(sampleCount)
-        val g = gain
         var outPeak = 0
         for (i in 0 until sampleCount * CHANNELS) {
+            if (i % CHANNELS == 0) smoothGain += (targetGain - smoothGain) * GAIN_STEP
             val s = ((input[2 * i].toInt() and 0xFF) or (input[2 * i + 1].toInt() shl 8)).toShort()
-            val v = (s * g).toInt().coerceIn(-32768, 32767)
+            val v = (s * smoothGain).toInt().coerceIn(-32768, 32767)
             outPeak = max(outPeak, kotlin.math.abs(v))
             output[2 * i] = v.toByte()
             output[2 * i + 1] = (v shr 8).toByte()
@@ -85,7 +86,7 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
 
     /** Громкостью владеет приложение: VLC сбрасывает её при открытии нового потока. */
     fun setVolume(volume: Int) {
-        gain = curve(volume / 100f)
+        targetGain = curve(volume / 100f)
     }
 
     /** Внутренний сброс VLC не должен менять усиление уже играющего или следующего трека. */
@@ -113,6 +114,7 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
         const val VLC_FORMAT = "S16N"
         private const val FRAME_BYTES = 2 * CHANNELS
         private val LOW_PASS = 1.0 - exp(-2.0 * Math.PI * 120.0 / RATE)
+        private val GAIN_STEP = (1.0 - exp(-1.0 / (RATE * 0.09))).toFloat()
 
         /** Как у вывода VLC в Windows: ползунок громкости — кубическая кривая, чтобы на слух было равномерно. */
         private fun curve(v: Float): Float = v.coerceIn(0f, 1.25f).let { it * it * it }

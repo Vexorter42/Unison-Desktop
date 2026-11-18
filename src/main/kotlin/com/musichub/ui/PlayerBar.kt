@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -126,6 +127,9 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
                 if (label.isNotEmpty()) Text(label, fontSize = 11.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (track != null) {
+                GlassIconButton(Icons.Rounded.Share, "Поделиться", onClick = {
+                    engine.notify(if (copyTrackForSharing(track)) "Трек скопирован для отправки" else "Не удалось скопировать трек")
+                }, tint = muted)
                 val liked = track.key in favKeys
                 GlassIconButton(
                     if (liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,

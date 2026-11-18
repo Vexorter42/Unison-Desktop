@@ -2,6 +2,8 @@ package com.musichub.data
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
 
 /** Одно прослушивание — те же поля, что у статистики Android-версии (так оно и попадает в резервную копию). */
@@ -21,12 +23,13 @@ data class PlayEvent(
 )
 
 /**
- * История прослушиваний (stats.json). Экрана статистики на ПК пока нет, но история уходит в резервную копию:
- * восстановленная на телефоне, она появится в его статистике, а история с телефона не теряется при переносе через ПК.
+ * История прослушиваний (stats.json), общая с резервной копией телефона.
  */
 class PlayStats(private val file: File = File(AppDirs.root, "stats.json")) {
     private val serializer = ListSerializer(PlayEvent.serializer())
     private var items: List<PlayEvent> = runCatching { StoreJson.decodeFromString(serializer, file.readText()) }.getOrDefault(emptyList())
+    private val _events = MutableStateFlow(items)
+    val events = _events.asStateFlow()
 
     @Synchronized
     fun all(): List<PlayEvent> = items
@@ -35,6 +38,7 @@ class PlayStats(private val file: File = File(AppDirs.root, "stats.json")) {
     @Synchronized
     fun record(e: PlayEvent) {
         items = items.filterNot { it.trackKey == e.trackKey && it.startedAt == e.startedAt } + e
+        _events.value = items
         save()
     }
 
@@ -45,6 +49,7 @@ class PlayStats(private val file: File = File(AppDirs.root, "stats.json")) {
         val fresh = events.filter { known.add(it.trackKey to it.startedAt) }
         if (fresh.isEmpty()) return 0
         items = (items + fresh).sortedBy { it.startedAt }
+        _events.value = items
         save()
         return fresh.size
     }
