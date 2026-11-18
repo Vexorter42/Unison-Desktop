@@ -7,13 +7,21 @@ on:
         description: 'Existing release tag to upload DMG to (leave empty for build check)'
         required: false
         type: string
+      runner:
+        description: 'Apple Silicon runner'
+        required: true
+        default: macos-15
+        type: choice
+        options:
+          - macos-15
+          - macos-26
 
 permissions:
   contents: write
 
 jobs:
   package:
-    runs-on: macos-15
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     steps:
       - uses: actions/checkout@v4
         with:
