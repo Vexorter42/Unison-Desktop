@@ -87,6 +87,8 @@ compose.desktop {
             }
             macOS {
                 bundleID = "com.vexorter42.unison"
+                // jpackage/CFBundleVersion не принимает ведущий ноль, пока общий релиз остаётся 0.x.
+                packageVersion = "1.${appVersion.substringAfter('.')}"
                 iconFile.set(project.file("icons/unison.icns"))
             }
         }
