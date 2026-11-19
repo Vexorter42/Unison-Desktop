@@ -10,6 +10,7 @@
 [![Release](https://img.shields.io/github/v/release/Vexorter42/Unison-Desktop?style=flat-square&label=release&labelColor=0d0d10&color=7a4dff)](https://github.com/Vexorter42/Unison-Desktop/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/Vexorter42/Unison-Desktop/total?style=flat-square&labelColor=0d0d10&color=4d71ff)](https://github.com/Vexorter42/Unison-Desktop/releases)
 [![Поддержать Unison на DonationAlerts](https://img.shields.io/badge/DonationAlerts-Поддержать%20Unison-F57D07?style=flat-square&logo=heart&logoColor=white)](https://www.donationalerts.com/r/nick556655)
+[![Поддержать Unison на CloudTips](https://img.shields.io/badge/CloudTips-Поддержать%20Unison-4788F4?style=flat-square&logo=heart&logoColor=white)](https://pay.cloudtips.ru/p/87298c71)
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&labelColor=0d0d10&logo=windows&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=flat-square&labelColor=0d0d10&logo=apple&logoColor=white)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3-7f52ff?style=flat-square&labelColor=0d0d10&logo=kotlin&logoColor=white)

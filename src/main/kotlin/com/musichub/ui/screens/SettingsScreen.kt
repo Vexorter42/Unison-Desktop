@@ -261,6 +261,29 @@ fun SettingsScreen() {
                 }
                 Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Открыть DonationAlerts", tint = Color(0xFFFF5A63))
             }
+            Row(
+                Modifier
+                    .widthIn(max = 760.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(glassFill(strong = true))
+                    .border(1.dp, Color(0x664788F4), RoundedCornerShape(20.dp))
+                    .clickable { openInBrowser("https://pay.cloudtips.ru/p/87298c71") }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x224788F4)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Rounded.Favorite, contentDescription = null, tint = Color(0xFF4788F4))
+                }
+                Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                    Text("Поддержать Unison", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Донат через CloudTips", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "Открыть CloudTips", tint = Color(0xFF4788F4))
+            }
         }
 
         Section("Обновления") {
