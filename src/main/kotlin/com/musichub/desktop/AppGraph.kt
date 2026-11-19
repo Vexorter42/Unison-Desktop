@@ -4,6 +4,7 @@ import com.musichub.data.Favorites
 import com.musichub.data.Backup
 import com.musichub.data.MyPlaylists
 import com.musichub.data.PlayStats
+import com.musichub.cloud.UnisonAccountSync
 import com.musichub.data.SettingsRepository
 import com.musichub.lyrics.LyricsRepository
 import com.musichub.net.FallbackDns
@@ -58,6 +59,7 @@ class AppGraph {
     val myPlaylists = MyPlaylists()
     val stats = PlayStats()
     val backup by lazy { Backup(settings, favorites, myPlaylists, stats) }
+    val accountSync by lazy { UnisonAccountSync(this) }
     val sources by lazy { Sources(this) }
     val transfer by lazy { TransferRepository(this) }
     val browserLogin = BrowserLogin(http)

@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -85,6 +86,8 @@ import androidx.compose.material.icons.rounded.Restore
 fun SettingsScreen() {
     val graph = LocalGraph.current
     val s by graph.settings.flow.collectAsState()
+    var privateAccountTaps by remember { mutableIntStateOf(0) }
+    var showPrivateAccount by remember { mutableStateOf(false) }
     fun set(block: (AppSettings) -> AppSettings) = graph.scope.launch { graph.settings.update(block) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 32.dp, vertical = 24.dp)) {
@@ -266,12 +269,25 @@ fun SettingsScreen() {
 
         Section("О приложении") {
             Text(
+                "Unison для друзей",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable {
+                    privateAccountTaps++
+                    if (privateAccountTaps >= 7) {
+                        privateAccountTaps = 0
+                        showPrivateAccount = true
+                    }
+                }.padding(vertical = 6.dp),
+            )
+            Text(
                 "Данные приложения: ${AppDirs.root.absolutePath}\nUnison — свободная программа (GPL-3.0), использует NewPipe Extractor и libVLC.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
+    if (showPrivateAccount) PrivateAccountDialog(onDismiss = { showPrivateAccount = false })
 }
 
 /** Раскрывающаяся категория настроек: заголовок со стрелкой, содержимое — по нажатию. */

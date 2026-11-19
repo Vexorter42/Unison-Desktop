@@ -76,6 +76,10 @@ data class AppSettings(
     /** Сессия YouTube Music (cookie после входа) и имя аккаунта. */
     val ytCookie: String? = null,
     val ytAccountName: String? = null,
+    /** Private Unison API endpoint and revocable session token. */
+    val cloudServer: String = "https://unison-api.vexorter.duckdns.org",
+    val cloudUsername: String? = null,
+    val cloudToken: String? = null,
 ) {
     val yandexLoggedIn: Boolean get() = yandexToken != null && yandexUid != null
     val vkLoggedIn: Boolean get() = vkToken != null && vkUserId != null
@@ -110,7 +114,18 @@ class SettingsRepository(private val file: File = File(AppDirs.root, "settings.j
     }
 
     private fun read(): AppSettings = runCatching {
-        StoreJson.decodeFromString(AppSettings.serializer(), file.readText())
+        val raw = file.readText()
+        val loaded = StoreJson.decodeFromString(AppSettings.serializer(), raw)
+        val hadNextcloudSecret = Regex("""\"cloudAppPassword\"\s*:""").containsMatchIn(raw)
+        if (hadNextcloudSecret || loaded.cloudServer.contains("nextcloud.vexorter.duckdns.org", ignoreCase = true)) {
+            loaded.copy(
+                cloudServer = "https://unison-api.vexorter.duckdns.org",
+                cloudUsername = null,
+                cloudToken = null,
+            ).also { migrated ->
+                writeAtomic(file, StoreJson.encodeToString(AppSettings.serializer(), migrated))
+            }
+        } else loaded
     }.getOrDefault(AppSettings())
 }
 
