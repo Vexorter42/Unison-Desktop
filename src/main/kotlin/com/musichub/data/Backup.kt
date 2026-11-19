@@ -35,6 +35,7 @@ data class BackupSettings(
     val waveSource: WaveSource = WaveSource.YANDEX,
     val waveLanguage: String = "any",
     val likeTarget: LikeTarget = LikeTarget.UNISON,
+    val equalizer: EqualizerConfig? = null,
 )
 
 @Serializable
@@ -85,7 +86,7 @@ class Backup(
             settings = BackupSettings(
                 s.searchYoutube, s.searchVk, s.fallbackToOthers, s.mixYoutubeInWave, s.mixEvery, s.quality, s.fadeSeconds,
                 s.autoCacheMb, s.waveMood, s.waveDiversity, s.ytProxyEnabled, s.ytProxyType, s.ytProxyHost, s.ytProxyPort,
-                s.liquidGlass, s.palette, s.coverTheme, s.waveSource, s.waveLanguage, s.likeTarget,
+                s.liquidGlass, s.palette, s.coverTheme, s.waveSource, s.waveLanguage, s.likeTarget, s.equalizer,
             ),
             playlists = lists,
             favorites = favorites.items.value.map { BackupFavorite(it.key, it.track.toJson(), it.addedAt, it.sentYandex, it.sentYoutube) },
@@ -120,6 +121,7 @@ class Backup(
                 ytProxyEnabled = b.ytProxyEnabled, ytProxyType = b.ytProxyType, ytProxyHost = b.ytProxyHost, ytProxyPort = b.ytProxyPort,
                 liquidGlass = b.liquidGlass, palette = b.palette, coverTheme = b.coverTheme,
                 waveSource = b.waveSource, waveLanguage = b.waveLanguage, likeTarget = b.likeTarget,
+                equalizer = b.equalizer ?: it.equalizer,
             )
         }
         RestoreResult(fresh.size, addedFavs, addedStats)

@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.ThumbDown
@@ -70,7 +71,8 @@ import com.musichub.util.formatTime
 enum class SidePanel { NONE, LYRICS, QUEUE }
 
 @Composable
-fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -> Unit, modifier: Modifier = Modifier) {
+fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -> Unit,
+    onOpenEqualizer: () -> Unit, modifier: Modifier = Modifier) {
     val graph = LocalGraph.current
     val engine = LocalEngine.current
     val s by engine.state.collectAsState()
@@ -181,6 +183,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
 
         // Справа: текст, очередь, громкость
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            GlassIconButton(Icons.Rounded.GraphicEq, "Эквалайзер", onClick = onOpenEqualizer, tint = muted)
             GlassIconButton(
                 Icons.Rounded.Lyrics, "Текст песни",
                 onClick = { onPanel(if (panel == SidePanel.LYRICS) SidePanel.NONE else SidePanel.LYRICS) },

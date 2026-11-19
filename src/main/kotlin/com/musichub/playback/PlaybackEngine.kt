@@ -1,6 +1,7 @@
 package com.musichub.playback
 
 import com.musichub.data.Favorites
+import com.musichub.data.EqualizerConfig
 import com.musichub.data.PlayEvent
 import com.musichub.data.PlayStats
 import com.musichub.data.SettingsRepository
@@ -26,11 +27,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uk.co.caprica.vlcj.factory.MediaPlayerFactory
 import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
+import uk.co.caprica.vlcj.player.base.Equalizer
 import java.util.concurrent.Executors
 
 enum class RepeatMode { OFF, ALL, ONE }
@@ -74,6 +79,10 @@ class PlaybackEngine(
     private val scope = CoroutineScope(SupervisorJob() + engineThread)
 
     private val player: MediaPlayer = vlcFactory.mediaPlayers().newMediaPlayer()
+    private val equalizerApi = vlcFactory.equalizer()
+    val equalizerFrequencies: List<Float> = equalizerApi.bands()
+    private var activeEqualizer: Equalizer? = null
+    private var appliedEqualizer: EqualizerConfig? = null
 
     /**
      * Звук через приложение, чтобы сфера Моей волны видела басы. Включается при запуске, если включена
@@ -169,6 +178,34 @@ class PlaybackEngine(
         })
         scope.launch { tickLoop() }
         if (bassMeter == null) scope.launch { volumeLoop() }
+        scope.launch {
+            settings.flow.map { it.equalizer }.distinctUntilChanged().collect { applyEqualizer(it) }
+        }
+    }
+
+    private fun applyEqualizer(config: EqualizerConfig) {
+        if (!config.enabled) {
+            if (activeEqualizer != null) player.audio().setEqualizer(null)
+            activeEqualizer = null
+            appliedEqualizer = config
+            return
+        }
+        val previous = appliedEqualizer
+        val eq = activeEqualizer ?: equalizerApi.newEqualizer().also { fresh ->
+            fresh.setPreamp(config.appliedPreamp())
+            repeat(fresh.bandCount()) { i -> fresh.setAmp(i, config.bands.getOrElse(i) { 0f }.coerceIn(-12f, 12f)) }
+            player.audio().setEqualizer(fresh)
+            activeEqualizer = fresh
+        }
+        if (previous != null && activeEqualizer === eq && previous.enabled) {
+            val preamp = config.appliedPreamp()
+            if (previous.appliedPreamp() != preamp) eq.setPreamp(preamp)
+            repeat(eq.bandCount()) { i ->
+                val gain = config.bands.getOrElse(i) { 0f }.coerceIn(-12f, 12f)
+                if (previous.bands.getOrElse(i) { 0f } != gain) eq.setAmp(i, gain)
+            }
+        }
+        appliedEqualizer = config
     }
 
     private fun isCurrentMedia(): Boolean = currentMrl != null && player.media().info()?.mrl() == currentMrl

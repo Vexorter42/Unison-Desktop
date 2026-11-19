@@ -5,6 +5,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -49,6 +51,8 @@ data class AppSettings(
     val waveLanguage: String = "any",
     /** Громкость 0..100 — запоминается между запусками. */
     val volume: Int = 80,
+    /** Настройка эквалайзера на ПК; в резервной копии мобильное приложение её просто пропускает. */
+    val equalizer: EqualizerConfig = EqualizerConfig(),
     /** Индекс палитры из ui.theme.Palettes. */
     val palette: Int = 0,
     /** Цвета экрана берутся из обложки текущего трека (поверх выбранной палитры). */
@@ -102,7 +106,7 @@ class SettingsRepository(private val file: File = File(AppDirs.root, "settings.j
     suspend fun update(block: (AppSettings) -> AppSettings) = lock.withLock {
         val next = block(state.value)
         state.value = next
-        writeAtomic(file, StoreJson.encodeToString(AppSettings.serializer(), next))
+        withContext(Dispatchers.IO) { writeAtomic(file, StoreJson.encodeToString(AppSettings.serializer(), next)) }
     }
 
     private fun read(): AppSettings = runCatching {

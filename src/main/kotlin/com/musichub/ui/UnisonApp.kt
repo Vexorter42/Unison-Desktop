@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
@@ -74,6 +75,7 @@ import com.musichub.data.model.Track
 import com.musichub.ui.screens.FavoritesScreen
 import com.musichub.ui.screens.HomeScreen
 import com.musichub.ui.screens.HistoryScreen
+import com.musichub.ui.screens.EqualizerScreen
 import com.musichub.ui.screens.LibraryScreen
 import com.musichub.ui.screens.SearchScreen
 import com.musichub.ui.screens.SearchState
@@ -93,6 +95,7 @@ private enum class Tab(val title: String, val icon: ImageVector) {
     LIBRARY("Медиатека", Icons.Rounded.LibraryMusic),
     FAVORITES("Любимое", Icons.Rounded.Favorite),
     HISTORY("История", Icons.Rounded.History),
+    EQUALIZER("Эквалайзер", Icons.Rounded.GraphicEq),
     TRANSFER("Перенос", Icons.Rounded.SwapHoriz),
     SETTINGS("Настройки", Icons.Rounded.Settings),
 }
@@ -185,6 +188,7 @@ fun UnisonApp() {
                                 )
                                 t == Tab.FAVORITES -> FavoritesScreen(onBack = null)
                                 t == Tab.HISTORY -> HistoryScreen()
+                                t == Tab.EQUALIZER -> EqualizerScreen()
                                 t == Tab.TRANSFER -> TransferScreen()
                                 else -> SettingsScreen()
                             }
@@ -201,7 +205,8 @@ fun UnisonApp() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                PlayerBar(panel, onPanel = { panel = it }, onOpenPlayer = { playerOpen = true })
+                PlayerBar(panel, onPanel = { panel = it }, onOpenPlayer = { playerOpen = true },
+                    onOpenEqualizer = { tab = Tab.EQUALIZER })
             }
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 116.dp)) { data ->

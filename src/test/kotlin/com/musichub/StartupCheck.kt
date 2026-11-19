@@ -14,6 +14,18 @@ fun main() {
     println("VLC (первый раз): $vlc мс")
     val vlc2 = measureTimeMillis { Vlc.createFactory()?.release() }
     println("VLC (повторно): $vlc2 мс")
+    val factory = Vlc.createFactory() ?: error("VLC не найден")
+    val equalizer = factory.equalizer()
+    check(equalizer.bands().size == 10) { "Ожидалось 10 полос эквалайзера, получено ${equalizer.bands().size}" }
+    val player = factory.mediaPlayers().newMediaPlayer()
+    val preset = equalizer.newEqualizer()
+    preset.setPreamp(-6f)
+    preset.setAmp(0, 6f)
+    player.audio().setEqualizer(preset)
+    player.audio().setEqualizer(null)
+    player.release()
+    factory.release()
+    println("Эквалайзер libVLC: 10 полос, включение и выключение работают")
     val graph = measureTimeMillis { AppGraph().engine?.release() }
     println("AppGraph целиком: $graph мс")
     kotlin.system.exitProcess(0)
