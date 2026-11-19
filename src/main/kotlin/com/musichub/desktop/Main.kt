@@ -120,22 +120,22 @@ private fun Splash() {
 
 @androidx.compose.runtime.Composable
 private fun NoVlcScreen() {
+    val isMac = System.getProperty("os.name").orEmpty().startsWith("Mac")
     MaterialTheme(colorScheme = darkColorScheme()) {
         Column(
             Modifier.fillMaxSize().background(Color(0xFF0D0D10)).padding(48.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Не найден VLC", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(if (isMac) "Не удалось запустить звук" else "Не найден VLC", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Text(
-                if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
-                    "Unison играет музыку через libVLC. Установите VLC для Mac с Apple Silicon в папку «Программы» и перезапустите Unison."
+                if (isMac)
+                    "Не загрузился аудиодвижок внутри Unison. Переустановите приложение из последнего DMG."
                 else "Unison играет музыку через libVLC. Установите VLC media player (64-bit) и перезапустите приложение.",
                 color = Color(0xFF9A9AA6),
             )
-            GlassButton("Скачать VLC", onClick = {
-                openInBrowser(if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
-                    "https://www.videolan.org/vlc/download-macosx.html" else "https://www.videolan.org/vlc/")
+            GlassButton(if (isMac) "Скачать Unison" else "Скачать VLC", onClick = {
+                openInBrowser(if (isMac) "https://github.com/Vexorter42/Unison-Desktop/releases/latest" else "https://www.videolan.org/vlc/")
             })
         }
     }

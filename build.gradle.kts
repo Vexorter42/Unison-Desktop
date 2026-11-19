@@ -8,7 +8,7 @@ plugins {
 }
 
 // Версию поднимает scripts/release.sh; приложение сравнивает её с последним релизом на GitHub
-val appVersion = "0.1.11"
+val appVersion = "0.1.12"
 
 kotlin {
     jvmToolchain(21)
@@ -57,6 +57,19 @@ val prepareVlc by tasks.registering(Copy::class) {
     into(vlcResources.map { it.dir("windows") })
 }
 
+/* В Mac DMG включаем libVLC и плагины, чтобы пользователю не приходилось ставить VLC отдельно. */
+val macVlcDir = (findProperty("macVlcDir") as String?) ?: "/Applications/VLC.app/Contents/MacOS"
+val prepareMacVlc by tasks.registering(Copy::class) {
+    from("$macVlcDir/lib") { into("lib") }
+    from("$macVlcDir/plugins") { into("plugins") }
+    into(vlcResources.map { it.dir("macos") })
+    doFirst {
+        require(file("$macVlcDir/lib/libvlc.dylib").isFile && file("$macVlcDir/plugins").isDirectory) {
+            "VLC для Mac не найден в $macVlcDir. Установите VLC 3.x для Apple Silicon перед сборкой DMG."
+        }
+    }
+}
+
 compose.desktop {
     application {
         mainClass = "com.musichub.desktop.MainKt"
@@ -71,7 +84,8 @@ compose.desktop {
             vendor = "Vexorter42"
             copyright = "GPL-3.0"
             licenseFile.set(rootProject.file("LICENSE"))
-            if (System.getProperty("os.name").startsWith("Windows")) appResourcesRootDir.set(vlcResources)
+            if (System.getProperty("os.name").startsWith("Windows") || System.getProperty("os.name").startsWith("Mac"))
+                appResourcesRootDir.set(vlcResources)
             modules("java.instrument", "java.management", "java.naming", "java.net.http", "java.scripting", "java.sql",
                 "jdk.crypto.ec", "jdk.httpserver", "jdk.unsupported", "jdk.zipfs", "jdk.accessibility")
 
@@ -99,6 +113,9 @@ afterEvaluate {
     if (System.getProperty("os.name").startsWith("Windows")) {
         tasks.matching { it.name.startsWith("package") || it.name.startsWith("createDistributable") || it.name == "prepareAppResources" }
             .configureEach { dependsOn(prepareVlc) }
+    } else if (System.getProperty("os.name").startsWith("Mac")) {
+        tasks.matching { it.name.startsWith("package") || it.name.startsWith("createDistributable") || it.name == "prepareAppResources" }
+            .configureEach { dependsOn(prepareMacVlc) }
     }
 }
 
@@ -135,6 +152,15 @@ tasks.register<JavaExec>("macVlcCheck") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("com.musichub.StartupCheckKt")
     jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+}
+
+// Запуск именно из подготовленных Mac ресурсов: CI выполняет после удаления системного VLC.
+tasks.register<JavaExec>("macBundledVlcCheck") {
+    group = "verification"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.StartupCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8", "-Dstdout.encoding=UTF-8")
+    systemProperty("compose.application.resources.dir", vlcResources.get().dir("macos").asFile.absolutePath)
 }
 
 // Скриншоты экранов без звука и без изменения настроек: build/shots

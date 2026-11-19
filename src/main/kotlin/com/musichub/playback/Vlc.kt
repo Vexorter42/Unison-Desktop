@@ -13,8 +13,13 @@ class BundledVlcDirectoryProvider : DiscoveryDirectoryProvider {
     override fun priority(): Int = 10
 
     override fun directories(): Array<String> = listOfNotNull(System.getProperty("compose.application.resources.dir"))
-        .filter { File(it, "libvlc.dll").exists() }
-        .toTypedArray()
+        .mapNotNull { dir ->
+            when {
+                File(dir, "libvlc.dll").isFile -> dir
+                File(dir, "lib/libvlc.dylib").isFile -> File(dir, "lib").absolutePath
+                else -> null
+            }
+        }.toTypedArray()
 
     override fun supported(): Boolean = true
 }

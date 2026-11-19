@@ -81,7 +81,9 @@
 
 1. Скачайте `Unison-Desktop-…-macos-arm64.dmg` из [последнего релиза](https://github.com/Vexorter42/Unison-Desktop/releases/latest).
 2. Откройте DMG и перенесите Unison в «Программы». Пакет пока не подписан Apple Developer ID: при первом запуске откройте приложение через **Control + клик → Открыть** или разрешите запуск в **Системные настройки → Конфиденциальность и безопасность**.
-3. Установите [VLC для Mac с Apple Silicon](https://www.videolan.org/vlc/download-macosx.html) в «Программы»: Unison использует его библиотеки для воспроизведения. Затем запустите Unison.
+3. Запустите Unison. Библиотеки воспроизведения входят в DMG; отдельно устанавливать VLC не нужно.
+
+Внутри Unison всё ещё используется libVLC. Это убирает зависимость от установленного приложения VLC, но сохраняет сам аудиодвижок.
 
 Для входа через браузер нужен Chrome или Edge. Вход в YouTube Music на Mac завершите закрытием отдельного окна браузера после открытия YouTube Music; если автоматическое чтение cookie не сработало, воспользуйтесь ручным входом в настройках.
 
@@ -138,7 +140,7 @@ src/main/kotlin/com/musichub/
 
 ## Сборка из исходников
 
-Нужны JDK 21 и установленный [VLC](https://www.videolan.org/vlc/) 3.x. В Windows установщик копирует из VLC libvlc и аудиоплагины; на Mac приложение использует VLC из папки «Программы».
+Нужны JDK 21 и установленный [VLC](https://www.videolan.org/vlc/) 3.x на компьютере, где **собирается** приложение. В Windows и Mac установщики копируют из VLC libvlc и плагины; пользователю VLC устанавливать не требуется.
 
 ```bash
 git clone https://github.com/Vexorter42/Unison-Desktop.git
@@ -153,6 +155,8 @@ cd Unison-Desktop
 bash scripts/create-macos-icon.sh
 ./gradlew packageDmg              # → build/compose/binaries/main/dmg
 ```
+
+Для локальной сборки Mac разместите VLC 3.x для Apple Silicon в `/Applications` или укажите каталог с папками `lib` и `plugins` через `-PmacVlcDir=...`.
 
 Сборка для Mac выполняется на Mac. Workflow `macOS Apple Silicon` в GitHub Actions собирает DMG на arm64 runner и по указанному тегу добавляет его к существующему релизу.
 
