@@ -70,6 +70,7 @@ import com.musichub.ui.theme.Palettes
 import com.musichub.vk.VkApi
 import com.musichub.yandex.YandexApi
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.awt.Desktop
@@ -99,7 +100,7 @@ fun SettingsScreen() {
                 title = "Яндекс Музыка",
                 loggedInAs = s.yandexLogin?.let { "Вход выполнен: $it" }.takeIf { s.yandexLoggedIn },
                 hint = "Откроется окно браузера: войдите в Яндекс и нажмите «Разрешить». Окно закроется само.",
-                browserLogin = {
+                browserLogin = { _ ->
                     graph.browserLogin.login(YandexApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
                 },
                 manualHint = "Откройте вход в своём браузере, войдите и разрешите доступ. Браузер перейдёт на страницу, " +
@@ -119,7 +120,7 @@ fun SettingsScreen() {
                 title = "ВКонтакте",
                 loggedInAs = s.vkName?.let { "Вход выполнен: $it" }.takeIf { s.vkLoggedIn },
                 hint = "Вход через Kate Mobile в окне браузера. ВК иногда ограничивает доступ к музыке — тогда поиск в ВК просто пропускается.",
-                browserLogin = {
+                browserLogin = { _ ->
                     graph.browserLogin.login(VkApi.OAUTH_URL) { pageUrls().firstNotNullOfOrNull(BrowserLogin::tokenFromUrl) }
                 },
                 manualHint = "Откройте вход в своём браузере, после входа скопируйте адрес страницы oauth.vk.com/blank.html#access_token=… и вставьте сюда.",
@@ -138,11 +139,17 @@ fun SettingsScreen() {
                 loggedInAs = s.ytAccountName?.let { "Вход выполнен: $it" }.takeIf { s.ytLoggedIn },
                 hint = "Необязательно: поиск и музыка YouTube работают и без входа. Вход нужен для ваших лайков и плейлистов. " +
                     if (System.getProperty("os.name").orEmpty().startsWith("Mac"))
-                        "Откроется отдельное окно браузера: войдите в Google. Когда откроется YouTube Music, закройте это окно, чтобы Unison прочитал cookie."
+                        "Откроется отдельное окно браузера: войдите в Google, вернитесь сюда и нажмите «Я вошёл — продолжить», когда откроется YouTube Music."
                     else "Откроется обычное окно браузера: войдите в Google. Когда откроется YouTube Music, окно закроется само.",
-                browserLogin = {
-                    val all = graph.browserLogin.loginAndReadCookies(BrowserLogin.YOUTUBE_LOGIN_URL, doneTitle = "YouTube Music")
-                    BrowserLogin.youtubeCookie(all).also { if ("SAPISID=" !in it) error("Вход в Google не завершён — попробуйте ещё раз") }
+                browserLogin = { done ->
+                    val all = graph.browserLogin.loginAndReadCookies(
+                        BrowserLogin.YOUTUBE_LOGIN_URL,
+                        doneTitle = "YouTube Music",
+                        done = done,
+                    )
+                    BrowserLogin.youtubeCookie(all).also {
+                        if (!com.musichub.data.YtMusicSession.hasAuthCookie(it)) error("Вход в Google не завершён — попробуйте ещё раз")
+                    }
                 },
                 manualHint = "1. Откройте music.youtube.com в своём браузере и войдите в аккаунт.\n" +
                     "2. Нажмите F12 → вкладка «Сеть» (Network) → обновите страницу (F5).\n" +
@@ -152,11 +159,12 @@ fun SettingsScreen() {
                 placeholder = "cURL-запрос или заголовок Cookie",
                 onSubmit = { input ->
                     val cookie = cookieFromInput(input)
-                    if ("SAPISID=" !in cookie) error("В cookie нет SAPISID — похоже, скопирован запрос без входа в аккаунт")
+                    if (!com.musichub.data.YtMusicSession.hasAuthCookie(cookie)) error("В cookie нет авторизационной cookie YouTube Music — проверьте вход в аккаунт")
                     val name = graph.ytMusic.accountName(cookie)
                     graph.settings.update { it.copy(ytCookie = cookie, ytAccountName = name) }
                 },
                 onLogout = { set { it.copy(ytCookie = null, ytAccountName = null) } },
+                manualBrowserFinish = System.getProperty("os.name").orEmpty().startsWith("Mac"),
             )
         }
 
@@ -342,18 +350,20 @@ private fun AccountCard(
     loggedInAs: String?,
     hint: String,
     /** Вход в окне браузера: возвращает то же, что пользователь вставил бы вручную. */
-    browserLogin: suspend () -> String,
+    browserLogin: suspend (CompletableDeferred<Unit>?) -> String,
     manualHint: String,
     manualUrl: String,
     placeholder: String,
     onSubmit: suspend (String) -> Unit,
     onLogout: () -> Unit,
+    manualBrowserFinish: Boolean = false,
 ) {
     val graph = LocalGraph.current
     val canUseBrowser = remember { graph.browserLogin.available }
     var input by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var waiting by remember { mutableStateOf<Job?>(null) }
+    var browserDone by remember { mutableStateOf<CompletableDeferred<Unit>?>(null) }
     var manual by remember { mutableStateOf(!canUseBrowser) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = LocalPalette.current
@@ -373,9 +383,12 @@ private fun AccountCard(
 
     fun loginInBrowser() {
         error = null
+        val done = if (manualBrowserFinish) CompletableDeferred<Unit>() else null
+        browserDone = done
         waiting = graph.scope.launch {
-            runCatching { onSubmit(browserLogin()) }
+            runCatching { onSubmit(browserLogin(done)) }
                 .onFailure { if (it !is CancellationException) error = it.message ?: it.javaClass.simpleName }
+            browserDone = null
             waiting = null
         }
     }
@@ -397,6 +410,7 @@ private fun AccountCard(
                     PrimaryPill("Войти через браузер", Icons.AutoMirrored.Rounded.Login, onClick = { loginInBrowser() })
                 } else {
                     Text("Окно входа открыто — войдите в аккаунт…", fontSize = 14.sp, color = palette.accent)
+                    if (manualBrowserFinish) GlassButton("Я вошёл — продолжить", onClick = { browserDone?.complete(Unit) })
                     GlassButton("Отмена", onClick = { job.cancel() })
                 }
                 Spacer(Modifier.weight(1f))

@@ -51,6 +51,9 @@ fun main() {
     if (graph.settings.current.yandexLoggedIn) {
         graph.scope.launch { runCatching { graph.yandex.refreshLikes() } }
     }
+    if (!graph.settings.current.cloudToken.isNullOrBlank()) {
+        graph.scope.launch { runCatching { graph.accountSync.sync() } }
+    }
     // Как в Android-версии: проверка обновлений при запуске и раз в 12 часов
     graph.scope.launch {
         delay(5_000)

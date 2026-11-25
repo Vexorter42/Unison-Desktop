@@ -145,7 +145,7 @@ fun FullPlayer(onBack: () -> Unit) {
                             onClick = engine::next,
                             size = 48.dp,
                             iconSize = 32.dp,
-                            enabled = state.hasNext || state.repeat != RepeatMode.OFF,
+                            enabled = state.hasNext,
                         )
                         GlassIconButton(
                             if (state.repeat == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,

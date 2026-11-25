@@ -127,7 +127,12 @@ class BrowserLogin(http: OkHttpClient) {
      * (или пользователь сам закрыл окно), окно закрывается штатно — так браузер сохраняет cookie на диск, —
      * а cookie читаются из того же профиля браузером без окна.
      */
-    suspend fun loginAndReadCookies(startUrl: String, doneTitle: String, timeoutMs: Long = 10 * 60_000L): List<Pair<String, String>> =
+    suspend fun loginAndReadCookies(
+        startUrl: String,
+        doneTitle: String,
+        timeoutMs: Long = 10 * 60_000L,
+        done: CompletableDeferred<Unit>? = null,
+    ): List<Pair<String, String>> =
         withContext(Dispatchers.IO) {
             val profile = freshProfile()
             try {
@@ -135,6 +140,11 @@ class BrowserLogin(http: OkHttpClient) {
                 try {
                     withTimeout(timeoutMs) {
                         while (window.isAlive) {
+                            if (done?.isCompleted == true) {
+                                delay(1500) // Google finishes writing session cookies after returning to YouTube Music
+                                window.destroy() // the temporary profile is isolated; request a graceful shutdown
+                                break
+                            }
                             if (isWindows && BrowserWindows.titles(window.pid()).any { doneTitle in it }) {
                                 delay(2000) // сайт дописывает cookie после перехода
                                 BrowserWindows.close(window.pid())

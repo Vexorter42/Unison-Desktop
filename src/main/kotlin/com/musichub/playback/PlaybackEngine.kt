@@ -119,7 +119,8 @@ class PlaybackEngine(
     private var repeat = RepeatMode.OFF
     private var loadJob: Job? = null
     /** Адрес потока, который сейчас открыт в VLC. */
-    private var currentMrl: String? = null
+    @Volatile private var currentMrl: String? = null
+    private var handledEndMrl: String? = null
     private var viaFallback = false
     /** Попытка проиграть текущий трек: 0 — свой сервис, 1 — уже пробуем замену. */
     private var attempt = 0
@@ -173,7 +174,7 @@ class PlaybackEngine(
             }
 
             // События старого трека могут прийти, когда уже грузится следующий, — их пропускаем
-            override fun finished(mediaPlayer: MediaPlayer) = post { if (isCurrentMedia()) onTrackEnded() }
+            override fun finished(mediaPlayer: MediaPlayer) = post { handleTrackEndedIfNeeded() }
             override fun error(mediaPlayer: MediaPlayer) = post { if (isCurrentMedia()) onTrackError() }
         })
         scope.launch { tickLoop() }
@@ -208,7 +209,20 @@ class PlaybackEngine(
         appliedEqualizer = config
     }
 
-    private fun isCurrentMedia(): Boolean = currentMrl != null && player.media().info()?.mrl() == currentMrl
+    private fun isCurrentMedia(): Boolean {
+        val expected = currentMrl ?: return false
+        val actual = player.media().info()?.mrl()
+        return actual == expected || (actual == null && player.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED)
+    }
+
+    /** VLC can miss its finished event on a few streams; poll ENDED as a backup and de-duplicate both paths. */
+    private fun handleTrackEndedIfNeeded() {
+        val mrl = currentMrl ?: return
+        if (handledEndMrl == mrl || !isCurrentMedia()) return
+        if (player.status().state() != uk.co.caprica.vlcj.player.base.State.ENDED) return
+        handledEndMrl = mrl
+        onTrackEnded()
+    }
 
     private fun post(block: () -> Unit) {
         scope.launch { block() }
@@ -735,6 +749,9 @@ class PlaybackEngine(
             delay(250)
             val now = System.nanoTime()
             val playing = player.status().isPlaying
+            if (!playing && player.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED) {
+                handleTrackEndedIfNeeded()
+            }
             if (playing) curPlayedMs += (now - last) / 1_000_000
             last = now
             if (playing) {
@@ -764,7 +781,7 @@ class PlaybackEngine(
                 isBuffering = buffering && t != null,
                 positionMs = if (t?.key == it.track?.key) player.status().time().coerceAtLeast(0) else 0,
                 durationMs = if (len > 0) len else (t?.durationMs ?: 0),
-                hasNext = pos + 1 < order.size || waveMode,
+                hasNext = pos + 1 < order.size,
                 waveMode = waveMode,
                 waveSource = waveSource,
                 radioTitle = radioTitle,

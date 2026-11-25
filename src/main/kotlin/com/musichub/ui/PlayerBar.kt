@@ -169,7 +169,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
                         )
                     }
                 }
-                GlassIconButton(Icons.Rounded.SkipNext, "Следующий", onClick = { engine.next() }, iconSize = 26.dp, enabled = s.hasNext || s.repeat != RepeatMode.OFF)
+                GlassIconButton(Icons.Rounded.SkipNext, "Следующий", onClick = { engine.next() }, iconSize = 26.dp, enabled = s.hasNext)
                 GlassIconButton(
                     if (s.repeat == RepeatMode.ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                     "Повтор",

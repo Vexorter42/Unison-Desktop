@@ -22,10 +22,15 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlaylistPlay
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +79,7 @@ class SearchState {
 fun SearchScreen(state: SearchState, openCollection: (CollectionSearchResult) -> Unit) {
     val graph = LocalGraph.current
     val engine = LocalEngine.current
+    val history by graph.searchHistory.items.collectAsState()
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
     val focus = remember { FocusRequester() }
@@ -84,6 +90,7 @@ fun SearchScreen(state: SearchState, openCollection: (CollectionSearchResult) ->
         if (q.isEmpty()) return
         job?.cancel()
         job = scope.launch {
+            graph.searchHistory.add(q)
             state.loading = true
             val r = graph.search.search(q, state.category)
             state.results = r
@@ -137,6 +144,27 @@ fun SearchScreen(state: SearchState, openCollection: (CollectionSearchResult) ->
         }
         Spacer(Modifier.height(8.dp))
         when {
+            state.query.isBlank() && history.isNotEmpty() -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                item {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("История поиска", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        TextButton(onClick = graph.searchHistory::clear) { Text("Очистить") }
+                    }
+                }
+                itemsIndexed(history, key = { _, query -> query.lowercase() }) { _, query ->
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { state.query = query; run() }
+                            .padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Rounded.History, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(query, Modifier.weight(1f).padding(horizontal = 12.dp), maxLines = 1)
+                        IconButton(onClick = { graph.searchHistory.remove(query) }) {
+                            Icon(Icons.Rounded.Close, "Удалить запрос", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
             state.results.tracks.isNotEmpty() || state.results.artists.isNotEmpty() || state.results.albums.isNotEmpty() || state.results.playlists.isNotEmpty() -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
                 when (state.category) {
                     SearchCategory.TRACKS -> itemsIndexed(state.results.tracks, key = { _, t -> t.key }) { i, t ->

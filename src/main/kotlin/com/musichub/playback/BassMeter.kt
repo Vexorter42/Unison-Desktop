@@ -17,7 +17,8 @@ import kotlin.math.sqrt
  * Громкость применяем сами: программная громкость VLC в 16 битах на малых значениях обнуляет звук.
  * Формат — только 16 бит: другие VLC 3 в этом режиме не отдаёт.
  */
-class BassMeter private constructor(private val line: SourceDataLine, initialVolume: Int) : AudioCallbackAdapter() {
+class BassMeter private constructor(@Volatile private var line: SourceDataLine?, initialVolume: Int) : AudioCallbackAdapter() {
+    private val outputLock = Any()
 
     /** Сила басов 0..1, сглаженная. Читается интерфейсом каждый кадр. */
     @Volatile
@@ -62,7 +63,26 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
             output[2 * i + 1] = (v shr 8).toByte()
         }
         outputPeak = outPeak
-        line.write(output, 0, bytes)
+        writeOutput(bytes)
+    }
+
+    /** Recover the Java Sound output if Windows/macOS drops or recreates the selected device mid-playback. */
+    private fun writeOutput(bytes: Int) = synchronized(outputLock) {
+        var active = line
+        if (active?.isOpen != true) {
+            runCatching { active?.close() }
+            active = runCatching { openLine() }.getOrNull()
+            line = active
+        }
+        val outputLine = active ?: return@synchronized
+        try {
+            outputLine.write(output, 0, bytes)
+        } catch (_: Exception) {
+            runCatching { outputLine.close() }
+            val recovered = runCatching { openLine() }.getOrNull()
+            line = recovered
+            runCatching { recovered?.write(output, 0, bytes) }
+        }
     }
 
     /** Басы — то, что проходит фильтр нижних частот (~120 Гц); уровень — относительно недавнего пика (до громкости). */
@@ -93,20 +113,23 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
     override fun setVolume(volume: Float, mute: Boolean) = Unit
 
     override fun pause(mediaPlayer: MediaPlayer, pts: Long) {
-        line.stop()
+        runCatching { line?.stop() }
         level = 0f
     }
 
-    override fun resume(mediaPlayer: MediaPlayer, pts: Long) = line.start()
+    override fun resume(mediaPlayer: MediaPlayer, pts: Long) { runCatching { line?.start() } }
 
     override fun flush(mediaPlayer: MediaPlayer, pts: Long) {
-        line.flush()
+        runCatching { line?.flush() }
         level = 0f
     }
 
-    override fun drain(mediaPlayer: MediaPlayer) = line.drain()
+    override fun drain(mediaPlayer: MediaPlayer) { runCatching { line?.drain() } }
 
-    fun close() = runCatching { line.close() }
+    fun close() = synchronized(outputLock) {
+        runCatching { line?.close() }
+        line = null
+    }
 
     companion object {
         const val RATE = 44100
@@ -120,13 +143,15 @@ class BassMeter private constructor(private val line: SourceDataLine, initialVol
         private fun curve(v: Float): Float = v.coerceIn(0f, 1.25f).let { it * it * it }
 
         /** null — звуковое устройство не открылось: тогда остаётся обычный вывод VLC. */
-        fun open(initialVolume: Int): BassMeter? = runCatching {
+        private fun openLine(): SourceDataLine {
             val format = AudioFormat(RATE.toFloat(), 16, CHANNELS, true, false)
             val line = AudioSystem.getSourceDataLine(format)
             // ~150 мс буфера: меньше — риск щелчков, больше — сфера заметно опережает звук
             line.open(format, RATE * FRAME_BYTES * 15 / 100)
             line.start()
-            BassMeter(line, initialVolume)
-        }.getOrNull()
+            return line
+        }
+
+        fun open(initialVolume: Int): BassMeter? = runCatching { BassMeter(openLine(), initialVolume) }.getOrNull()
     }
 }

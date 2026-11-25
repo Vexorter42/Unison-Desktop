@@ -13,6 +13,7 @@ import com.musichub.playback.StreamProxy
 import com.musichub.playback.StreamResolver
 import com.musichub.playback.Vlc
 import com.musichub.search.SearchRepository
+import com.musichub.search.SearchHistory
 import com.musichub.soundcloud.SoundCloudApi
 import com.musichub.transfer.Sources
 import com.musichub.transfer.TransferRepository
@@ -54,6 +55,7 @@ class AppGraph {
     val ytMusic = YtMusicApi(http) { settings.current.ytCookie }
     val lyrics = LyricsRepository(http)
     val search = SearchRepository(yandex, vk, youtube, soundcloud, settings)
+    val searchHistory = SearchHistory()
     val favorites = Favorites(yandex, youtube, ytMusic, vk)
     val images = ImageLoader(http)
     val myPlaylists = MyPlaylists()
