@@ -37,6 +37,8 @@ import uk.co.caprica.vlcj.player.base.MediaPlayer
 import uk.co.caprica.vlcj.player.base.MediaPlayerEventAdapter
 import uk.co.caprica.vlcj.player.base.Equalizer
 import java.util.concurrent.Executors
+import java.io.File
+import com.musichub.data.AppDirs
 
 enum class RepeatMode { OFF, ALL, ONE }
 
@@ -77,6 +79,7 @@ class PlaybackEngine(
     private val engineThread = Executors.newSingleThreadExecutor { r -> Thread(r, "playback").apply { isDaemon = true } }
         .asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + engineThread)
+    private val lastPlaybackFile = File(AppDirs.root, "last-playback.json")
 
     private val player: MediaPlayer = vlcFactory.mediaPlayers().newMediaPlayer()
     private val equalizerApi = vlcFactory.equalizer()
@@ -153,6 +156,12 @@ class PlaybackEngine(
     private val current: Track? get() = order.getOrNull(pos)?.let { queue.getOrNull(it) }
 
     init {
+        runCatching { Track.fromJson(lastPlaybackFile.readText()) }.getOrNull()?.let { track ->
+            queue = listOf(track)
+            order = listOf(0)
+            pos = 0
+            publish()
+        }
         // Громкость применяет BassMeter (true — VLC передаёт её в setVolume, а не режет сэмплы сам)
         bassMeter?.let { player.audio().callback(BassMeter.VLC_FORMAT, BassMeter.RATE, BassMeter.CHANNELS, it, true) }
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
@@ -596,6 +605,10 @@ class PlaybackEngine(
         attempt = if (skipPrimary) 1 else 0
         pos = if (index in order.indices) index else 0
         val t = current ?: return
+        runCatching {
+            lastPlaybackFile.parentFile?.mkdirs()
+            lastPlaybackFile.writeText(t.toJson())
+        }
         if (cur?.key != t.key) beginCurrent(t)
         loadJob?.cancel()
         currentMrl = null
