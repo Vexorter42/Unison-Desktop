@@ -208,6 +208,8 @@ fun SettingsScreen() {
                 s.autoContinueSimilar,
                 note = "Плейлист доиграл — продолжить похожими треками на последний",
             ) { v -> set { it.copy(autoContinueSimilar = v) } }
+            Toggle("Радио при выборе трека в поиске", s.radioFromSearch,
+                note = "После выбранного трека будут играть похожие") { v -> set { it.copy(radioFromSearch = v) } }
             Spacer(Modifier.height(10.dp))
             Text("Качество", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))

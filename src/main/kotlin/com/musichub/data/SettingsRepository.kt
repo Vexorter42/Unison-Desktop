@@ -43,6 +43,7 @@ data class AppSettings(
     val fallbackToOthers: Boolean = true,
     /** Обычная очередь доиграла — продолжить похожими треками на последний. */
     val autoContinueSimilar: Boolean = false,
+    val radioFromSearch: Boolean = true,
     val likeTarget: LikeTarget = LikeTarget.UNISON,
     val quality: Quality = Quality.HIGH,
     val waveMood: String = "all",

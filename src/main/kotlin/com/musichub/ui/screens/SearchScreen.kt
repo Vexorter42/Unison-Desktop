@@ -168,7 +168,10 @@ fun SearchScreen(state: SearchState, openCollection: (CollectionSearchResult) ->
             state.results.tracks.isNotEmpty() || state.results.artists.isNotEmpty() || state.results.albums.isNotEmpty() || state.results.playlists.isNotEmpty() -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
                 when (state.category) {
                     SearchCategory.TRACKS -> itemsIndexed(state.results.tracks, key = { _, t -> t.key }) { i, t ->
-                        TrackRow(t, index = i, onPlay = { engine.playTracks(state.results.tracks, i) })
+                        TrackRow(t, index = i, onPlay = {
+                            if (graph.settings.current.radioFromSearch) engine.startRadio(t)
+                            else engine.playTracks(state.results.tracks, i)
+                        })
                     }
                     SearchCategory.ARTISTS -> itemsIndexed(state.results.artists, key = { _, a -> "${a.source}:${a.id}" }) { _, artist ->
                         androidx.compose.material3.ListItem(
