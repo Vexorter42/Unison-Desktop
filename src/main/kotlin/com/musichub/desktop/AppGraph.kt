@@ -3,6 +3,7 @@ package com.musichub.desktop
 import com.musichub.data.Favorites
 import com.musichub.data.Backup
 import com.musichub.data.MyPlaylists
+import com.musichub.data.OfflineDownloads
 import com.musichub.data.PlayStats
 import com.musichub.cloud.UnisonAccountSync
 import com.musichub.data.SettingsRepository
@@ -76,7 +77,8 @@ class AppGraph {
     /** Трек, для которого надо показать экран похожих (клик по названию). */
     val pendingSimilar = kotlinx.coroutines.flow.MutableStateFlow<com.musichub.data.model.Track?>(null)
 
-    private val resolver = StreamResolver(settings, yandex, vk, youtube, soundcloud)
+    private val resolver: StreamResolver = StreamResolver(settings, yandex, vk, youtube, soundcloud) { key -> offlineDownloads.pathFor(key) }
+    val offlineDownloads: OfflineDownloads by lazy { OfflineDownloads(streamHttp, { track -> resolver.resolve(track).url }) }
     private val proxy = StreamProxy(streamHttp)
 
     /** null — не нашёлся VLC: интерфейс покажет, что делать. Ленивый: VLC запускается в фоне, уже после показа окна. */

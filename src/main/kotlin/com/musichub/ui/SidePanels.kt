@@ -3,9 +3,11 @@ package com.musichub.ui
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +22,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.DragHandle
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,12 +36,14 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import com.musichub.ui.liquid.panelSurface
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.musichub.lyrics.Lyrics
 
 /** Подложка боковой панели. */
@@ -124,7 +134,19 @@ fun QueuePanel(modifier: Modifier = Modifier) {
         LaunchedEffect(Unit) { list.scrollToItem((s.index - 1).coerceAtLeast(0)) }
         LazyColumn(state = list) {
             itemsIndexed(s.queue, key = { i, t -> "$i:${t.key}" }) { i, t ->
-                TrackRow(t, index = null, onPlay = { engine.skipTo(i) }, compact = true)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    var drag = 0f
+                    Icon(Icons.Rounded.DragHandle, "Перетащить трек", modifier = Modifier.pointerInput(i, s.queue.size) {
+                        detectDragGestures(onDragStart = { drag = 0f }, onDragEnd = {
+                            val target = (i + (drag / 56.dp.toPx()).roundToInt()).coerceIn(0, s.queue.lastIndex)
+                            engine.moveQueueItem(i, target)
+                        }) { change, amount -> change.consume(); drag += amount.y }
+                    })
+                    TrackRow(t, index = null, onPlay = { engine.skipTo(i) }, modifier = Modifier.weight(1f), compact = true)
+                    GlassIconButton(Icons.Rounded.KeyboardArrowUp, "Выше", { engine.moveQueueItem(i, i - 1) }, size = 28.dp, enabled = i > 0)
+                    GlassIconButton(Icons.Rounded.KeyboardArrowDown, "Ниже", { engine.moveQueueItem(i, i + 1) }, size = 28.dp, enabled = i < s.queue.lastIndex)
+                    GlassIconButton(Icons.Rounded.Close, "Убрать из очереди", { engine.removeQueueItem(i) }, size = 28.dp, enabled = i != s.index)
+                }
             }
         }
     }

@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -210,6 +211,16 @@ fun SettingsScreen() {
             ) { v -> set { it.copy(autoContinueSimilar = v) } }
             Toggle("Радио при выборе трека в поиске", s.radioFromSearch,
                 note = "После выбранного трека будут играть похожие") { v -> set { it.copy(radioFromSearch = v) } }
+            val crossfadeOn = s.crossfadeEnabled && s.fadeSeconds > 0
+            Toggle("Кроссфейд", crossfadeOn, note = "Следующий трек плавно начинается до окончания текущего") { enabled ->
+                set { it.copy(crossfadeEnabled = enabled, fadeSeconds = if (enabled && it.fadeSeconds == 0) 4 else it.fadeSeconds) }
+            }
+            if (crossfadeOn) {
+                var fadeValue by remember(s.fadeSeconds) { mutableStateOf(s.fadeSeconds.coerceIn(1, 12).toFloat()) }
+                Text("Длительность перехода: ${fadeValue.toInt()} с", fontSize = 15.sp)
+                Slider(value = fadeValue, onValueChange = { fadeValue = it }, valueRange = 1f..12f, steps = 10,
+                    onValueChangeFinished = { set { it.copy(fadeSeconds = fadeValue.toInt()) } }, modifier = Modifier.widthIn(max = 400.dp))
+            }
             Spacer(Modifier.height(10.dp))
             Text("Качество", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             Spacer(Modifier.height(8.dp))

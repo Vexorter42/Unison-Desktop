@@ -66,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.playback.RepeatMode
+import com.musichub.search.artistChoices
 import com.musichub.util.formatTime
 
 enum class SidePanel { NONE, LYRICS, QUEUE }
@@ -78,6 +79,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
     val s by engine.state.collectAsState()
     val favKeys by graph.favorites.keys.collectAsState()
     val track = s.track
+    var artistDialog by remember { mutableStateOf(false) }
     val onSurface = MaterialTheme.colorScheme.onSurface
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val accent = MaterialTheme.colorScheme.primary
@@ -122,7 +124,10 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
                     overflow = TextOverflow.Ellipsis,
                     // Клик по исполнителю — найти его в поиске
                     modifier = if (track != null) {
-                        Modifier.pointerHoverIcon(PointerIcon.Hand).clickable { graph.pendingSearch.value = track.artists }
+                        Modifier.pointerHoverIcon(PointerIcon.Hand).clickable {
+                            val names = track.artistChoices()
+                            if (names.size > 1) artistDialog = true else names.firstOrNull()?.let { graph.pendingSearch.value = it }
+                        }
                     } else Modifier,
                 )
                 val label = listOfNotNull(s.radioTitle, if (s.viaFallback) "из замены" else null).joinToString(" · ")
@@ -220,6 +225,7 @@ fun PlayerBar(panel: SidePanel, onPanel: (SidePanel) -> Unit, onOpenPlayer: () -
             )
         }
     }
+    if (artistDialog && track != null) ArtistSearchDialog(track, onPick = { artistDialog = false; graph.pendingSearch.value = it }, onDismiss = { artistDialog = false })
 }
 
 @Composable

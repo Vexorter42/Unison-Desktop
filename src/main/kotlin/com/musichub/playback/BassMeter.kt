@@ -37,6 +37,8 @@ class BassMeter private constructor(@Volatile private var line: SourceDataLine?,
 
     @Volatile
     private var targetGain = curve(initialVolume / 100f)
+    @Volatile
+    private var fadeGain = 1f
     private var smoothGain = targetGain
 
     private var input = ByteArray(0)
@@ -55,7 +57,7 @@ class BassMeter private constructor(@Volatile private var line: SourceDataLine?,
         measure(sampleCount)
         var outPeak = 0
         for (i in 0 until sampleCount * CHANNELS) {
-            if (i % CHANNELS == 0) smoothGain += (targetGain - smoothGain) * GAIN_STEP
+            if (i % CHANNELS == 0) smoothGain += (targetGain * fadeGain - smoothGain) * GAIN_STEP
             val s = ((input[2 * i].toInt() and 0xFF) or (input[2 * i + 1].toInt() shl 8)).toShort()
             val v = (s * smoothGain).toInt().coerceIn(-32768, 32767)
             outPeak = max(outPeak, kotlin.math.abs(v))
@@ -108,6 +110,8 @@ class BassMeter private constructor(@Volatile private var line: SourceDataLine?,
     fun setVolume(volume: Int) {
         targetGain = curve(volume / 100f)
     }
+
+    fun setFadeGain(gain: Float) { fadeGain = gain.coerceIn(0f, 1f) }
 
     /** Внутренний сброс VLC не должен менять усиление уже играющего или следующего трека. */
     override fun setVolume(volume: Float, mute: Boolean) = Unit

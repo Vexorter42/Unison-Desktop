@@ -67,8 +67,9 @@ data class AppSettings(
     /** Подмешивать похожие треки с YouTube в Мою волну: каждый [mixEvery]-й трек. */
     val mixYoutubeInWave: Boolean = false,
     val mixEvery: Int = 4,
-    // Настройки только Android-версии: на ПК не используются, но хранятся, чтобы не терялись в резервной копии
+    // Остальные настройки Android сохраняются для совместимости резервных копий.
     val fadeSeconds: Int = 0,
+    val crossfadeEnabled: Boolean = true,
     val autoCacheMb: Int = 4096,
     val ytProxyEnabled: Boolean = false,
     val ytProxyType: String = "SOCKS",
@@ -81,6 +82,8 @@ data class AppSettings(
     val cloudServer: String = "https://unison-api.vexorter.duckdns.org",
     val cloudUsername: String? = null,
     val cloudToken: String? = null,
+    val cloudSyncAt: Long = 0,
+    val cloudAutoSync: Boolean = true,
 ) {
     val yandexLoggedIn: Boolean get() = yandexToken != null && yandexUid != null
     val vkLoggedIn: Boolean get() = vkToken != null && vkUserId != null

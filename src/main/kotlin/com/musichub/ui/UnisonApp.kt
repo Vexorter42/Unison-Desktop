@@ -128,6 +128,7 @@ fun UnisonApp() {
                 search.query = q
                 search.autoRun++
                 tab = Tab.SEARCH
+                playerOpen = false
                 opened = null
                 similar = null
             }

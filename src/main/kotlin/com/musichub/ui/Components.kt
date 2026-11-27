@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.data.model.Source
 import com.musichub.data.model.Track
+import com.musichub.search.artistChoices
 import com.musichub.desktop.AppGraph
 import com.musichub.playback.PlaybackEngine
 import com.musichub.ui.theme.LocalPalette
@@ -294,6 +295,7 @@ fun TrackRow(
     val hover = remember { MutableInteractionSource() }
     val hovered by hover.collectIsHoveredAsState()
     var menu by remember { mutableStateOf(false) }
+    var artistDialog by remember { mutableStateOf(false) }
     val accent = MaterialTheme.colorScheme.primary
 
     Row(
@@ -378,7 +380,11 @@ fun TrackRow(
                 DropdownMenuItem(text = { Text("Добавить в очередь") }, leadingIcon = { Icon(Icons.Rounded.QueueMusic, null) }, onClick = { menu = false; engine.enqueue(track) })
                 HorizontalDivider(Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 DropdownMenuItem(text = { Text("Похожие треки") }, leadingIcon = { Icon(Icons.Rounded.GraphicEq, null) }, onClick = { menu = false; graph.pendingSimilar.value = track })
-                DropdownMenuItem(text = { Text("Искать исполнителя") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = { menu = false; graph.pendingSearch.value = track.artists })
+                DropdownMenuItem(text = { Text("Искать исполнителя") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, onClick = {
+                    menu = false
+                    val names = track.artistChoices()
+                    if (names.size > 1) artistDialog = true else names.firstOrNull()?.let { graph.pendingSearch.value = it }
+                })
                 DropdownMenuItem(text = { Text("Радио по треку") }, leadingIcon = { Icon(Icons.Rounded.Radio, null) }, onClick = { menu = false; engine.startRadio(track) })
                 DropdownMenuItem(text = { Text("Поделиться") }, leadingIcon = { Icon(Icons.Rounded.Share, null) }, onClick = {
                     menu = false
@@ -387,4 +393,5 @@ fun TrackRow(
             }
         }
     }
+    if (artistDialog) ArtistSearchDialog(track, onPick = { artistDialog = false; graph.pendingSearch.value = it }, onDismiss = { artistDialog = false })
 }

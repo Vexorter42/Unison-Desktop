@@ -39,13 +39,17 @@ import uk.co.caprica.vlcj.player.base.Equalizer
 import java.util.concurrent.Executors
 import java.io.File
 import com.musichub.data.AppDirs
+import com.musichub.data.writeAtomic
 
+@kotlinx.serialization.Serializable
 enum class RepeatMode { OFF, ALL, ONE }
 
 data class PlayerState(
     val track: Track? = null,
     val isPlaying: Boolean = false,
     val isBuffering: Boolean = false,
+    val crossfading: Boolean = false,
+    val error: String? = null,
     val positionMs: Long = 0,
     val durationMs: Long = 0,
     val hasNext: Boolean = false,
@@ -66,7 +70,7 @@ data class PlayerState(
  * Вся логика крутится на одном потоке [engineThread], чтобы не ловить гонок с событиями VLC.
  */
 class PlaybackEngine(
-    vlcFactory: MediaPlayerFactory,
+    private val vlcFactory: MediaPlayerFactory,
     private val settings: SettingsRepository,
     private val resolver: StreamResolver,
     private val proxy: StreamProxy,
@@ -80,6 +84,7 @@ class PlaybackEngine(
         .asCoroutineDispatcher()
     private val scope = CoroutineScope(SupervisorJob() + engineThread)
     private val lastPlaybackFile = File(AppDirs.root, "last-playback.json")
+    private val snapshotFile = File(AppDirs.root, "playback-snapshot.json")
 
     private val player: MediaPlayer = vlcFactory.mediaPlayers().newMediaPlayer()
     private val equalizerApi = vlcFactory.equalizer()
@@ -129,6 +134,18 @@ class PlaybackEngine(
     private var attempt = 0
     private var consecutiveErrors = 0
     private var buffering = false
+    private var playbackError: String? = null
+    private var restorePositionMs: Long? = null
+    private var restoreIndex: Int? = null
+    private var restoreTrackKey: String? = null
+    private var fadeJob: Job? = null
+    private var fadePlayer: MediaPlayer? = null
+    private var fadeTrackKey: String? = null
+    private var fadePreparedUrl: String? = null
+    private var fadeFailedKey: String? = null
+    private var fadeStarted = false
+    private var fadeStartRemaining = 0L
+    private var fadeGain = 1f
 
     // ---------- Моя волна ----------
 
@@ -156,16 +173,36 @@ class PlaybackEngine(
     private val current: Track? get() = order.getOrNull(pos)?.let { queue.getOrNull(it) }
 
     init {
-        runCatching { Track.fromJson(lastPlaybackFile.readText()) }.getOrNull()?.let { track ->
-            queue = listOf(track)
-            order = listOf(0)
-            pos = 0
+        val saved = runCatching { snapshotJson.decodeFromString(PlaybackSnapshot.serializer(), snapshotFile.readText()) }.getOrNull()
+        if (saved != null && saved.tracks.isNotEmpty()) {
+            queue = saved.tracks
+            order = queue.indices.toList()
+            pos = saved.index.coerceIn(order.indices)
+            shuffle = saved.shuffle
+            repeat = saved.repeat
+            waveMode = saved.waveMode && saved.provider != null
+            radioProvider = saved.provider
+            waveSource = saved.waveSource
+            radioStation = saved.station
+            radioTitle = saved.title
+            waveBatchId = saved.batchId
+            restorePositionMs = saved.positionMs.coerceAtLeast(0)
+            restoreIndex = pos
+            restoreTrackKey = current?.key
             publish()
+        } else runCatching { Track.fromJson(lastPlaybackFile.readText()) }.getOrNull()?.let { track ->
+            queue = listOf(track); order = listOf(0); pos = 0; publish()
         }
         // Громкость применяет BassMeter (true — VLC передаёт её в setVolume, а не режет сэмплы сам)
         bassMeter?.let { player.audio().callback(BassMeter.VLC_FORMAT, BassMeter.RATE, BassMeter.CHANNELS, it, true) }
         player.events().addMediaPlayerEventListener(object : MediaPlayerEventAdapter() {
             override fun playing(mediaPlayer: MediaPlayer) = post {
+                restorePositionMs?.let { position ->
+                    if (restoreIndex == pos && position > 0) player.controls().setTime(position)
+                    restorePositionMs = null
+                    restoreIndex = null
+                    restoreTrackKey = null
+                }
                 buffering = false
                 consecutiveErrors = 0
                 applyVolume()
@@ -183,7 +220,7 @@ class PlaybackEngine(
             }
 
             // События старого трека могут прийти, когда уже грузится следующий, — их пропускаем
-            override fun finished(mediaPlayer: MediaPlayer) = post { handleTrackEndedIfNeeded() }
+            override fun finished(mediaPlayer: MediaPlayer) = post { handleTrackEndedIfNeeded(fromEvent = true) }
             override fun error(mediaPlayer: MediaPlayer) = post { if (isCurrentMedia()) onTrackError() }
         })
         scope.launch { tickLoop() }
@@ -196,6 +233,7 @@ class PlaybackEngine(
     private fun applyEqualizer(config: EqualizerConfig) {
         if (!config.enabled) {
             if (activeEqualizer != null) player.audio().setEqualizer(null)
+            fadePlayer?.audio()?.setEqualizer(null)
             activeEqualizer = null
             appliedEqualizer = config
             return
@@ -216,19 +254,27 @@ class PlaybackEngine(
             }
         }
         appliedEqualizer = config
+        fadePlayer?.audio()?.setEqualizer(activeEqualizer)
     }
 
     private fun isCurrentMedia(): Boolean {
         val expected = currentMrl ?: return false
         val actual = player.media().info()?.mrl()
-        return actual == expected || (actual == null && player.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED)
+        val sameFile = actual?.startsWith("file:") == true && runCatching {
+            java.io.File(java.net.URI(actual)).canonicalFile == java.io.File(expected).canonicalFile
+        }.getOrDefault(false)
+        return actual == expected || sameFile || (actual == null && player.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED)
     }
 
+    private fun playbackMrl(url: String): String =
+        if (url.startsWith("file:")) java.io.File(java.net.URI(url)).absolutePath else proxy.register(url)
+
     /** VLC can miss its finished event on a few streams; poll ENDED as a backup and de-duplicate both paths. */
-    private fun handleTrackEndedIfNeeded() {
+    private fun handleTrackEndedIfNeeded(fromEvent: Boolean = false) {
         val mrl = currentMrl ?: return
         if (handledEndMrl == mrl || !isCurrentMedia()) return
-        if (player.status().state() != uk.co.caprica.vlcj.player.base.State.ENDED) return
+        val state = player.status().state()
+        if (state != uk.co.caprica.vlcj.player.base.State.ENDED && !(fromEvent && state == uk.co.caprica.vlcj.player.base.State.STOPPED)) return
         handledEndMrl = mrl
         onTrackEnded()
     }
@@ -259,6 +305,7 @@ class PlaybackEngine(
         insertAfterCurrent(t)
         _messages.tryEmit("Следующим: ${t.title}")
         publish()
+        savePlayback()
     }
 
     fun playFromSource(original: Track, selected: Track) = post {
@@ -275,6 +322,7 @@ class PlaybackEngine(
         order = order + queue.lastIndex
         _messages.tryEmit("Добавлено в очередь: ${t.title}")
         publish()
+        savePlayback()
     }
 
     private fun playNow(tracks: List<Track>) {
@@ -290,20 +338,24 @@ class PlaybackEngine(
 
     fun togglePlay() = post {
         when {
-            player.status().isPlaying -> player.controls().setPause(true)
+            player.status().isPlaying -> { savePlayback(); player.controls().setPause(true); fadePlayer?.controls()?.setPause(true) }
             current == null -> Unit
-            player.status().state() == uk.co.caprica.vlcj.player.base.State.PAUSED -> player.controls().setPause(false)
+            player.status().state() == uk.co.caprica.vlcj.player.base.State.PAUSED -> { player.controls().setPause(false); fadePlayer?.controls()?.setPause(false) }
             else -> load(pos)
         }
         publish()
     }
 
+    fun retryPlayback() = post { if (current != null) load(pos) }
+
     fun next() = post {
+        cancelCrossfade()
         finishCurrent()
         advance(userSkip = true)
     }
 
     fun previous() = post {
+        cancelCrossfade()
         if (player.status().time() > 3000 || pos <= 0) {
             player.controls().setTime(0)
         } else {
@@ -313,8 +365,11 @@ class PlaybackEngine(
     }
 
     fun seekTo(ms: Long) = post {
-        player.controls().setTime(ms.coerceAtLeast(0))
+        cancelCrossfade()
+        if (restoreIndex == pos && currentMrl == null) restorePositionMs = ms.coerceAtLeast(0)
+        else player.controls().setTime(ms.coerceAtLeast(0))
         _state.update { it.copy(positionMs = ms) }
+        savePlayback()
     }
 
     /** Перейти к треку очереди (индекс в порядке воспроизведения, как в [PlayerState.queue]). */
@@ -322,6 +377,27 @@ class PlaybackEngine(
         if (index !in order.indices) return@post
         finishCurrent()
         load(index)
+    }
+
+    fun moveQueueItem(from: Int, to: Int) = post {
+        if (from !in order.indices || to !in order.indices || from == to) return@post
+        val currentIndex = order[pos]
+        order = order.toMutableList().apply { add(to, removeAt(from)) }
+        pos = order.indexOf(currentIndex)
+        restoreIndex = restoreIndex?.let { pos }
+        publish()
+        savePlayback()
+    }
+
+    fun removeQueueItem(index: Int) = post {
+        if (index !in order.indices || index == pos) return@post
+        val removed = order[index]
+        queue = queue.toMutableList().apply { removeAt(removed) }
+        order = order.filterIndexed { i, _ -> i != index }.map { if (it > removed) it - 1 else it }
+        if (index < pos) pos--
+        restoreIndex = restoreIndex?.let { pos }
+        publish()
+        savePlayback()
     }
 
     fun setVolume(v: Int) = post {
@@ -341,7 +417,9 @@ class PlaybackEngine(
             queue.indices.toList()
         }
         pos = curIdx?.let { order.indexOf(it) } ?: -1
+        if (restoreIndex != null) restoreIndex = pos
         publish()
+        savePlayback()
     }
 
     fun cycleRepeat() = post {
@@ -351,6 +429,7 @@ class PlaybackEngine(
             RepeatMode.ONE -> RepeatMode.OFF
         }
         publish()
+        savePlayback()
     }
 
     fun notify(message: String) {
@@ -602,9 +681,13 @@ class PlaybackEngine(
 
     /** Загрузить и проиграть трек на позиции [index] порядка воспроизведения. */
     private fun load(index: Int, skipPrimary: Boolean = false) {
+        cancelCrossfade()
+        fadeFailedKey = null
+        playbackError = null
         attempt = if (skipPrimary) 1 else 0
         pos = if (index in order.indices) index else 0
         val t = current ?: return
+        if (restoreIndex != pos || restoreTrackKey != t.key) { restorePositionMs = null; restoreIndex = null; restoreTrackKey = null }
         runCatching {
             lastPlaybackFile.parentFile?.mkdirs()
             lastPlaybackFile.writeText(t.toJson())
@@ -612,7 +695,9 @@ class PlaybackEngine(
         if (cur?.key != t.key) beginCurrent(t)
         loadJob?.cancel()
         currentMrl = null
+        handledEndMrl = null
         player.controls().stop()
+        savePlayback()
         buffering = true
         viaFallback = false
         publish()
@@ -626,7 +711,7 @@ class PlaybackEngine(
             result.onSuccess { stream ->
                 viaFallback = stream.viaFallback
                 if (stream.viaFallback) _messages.tryEmit("«${t.title}» играет из замены")
-                val mrl = proxy.register(stream.url)
+                val mrl = playbackMrl(stream.url)
                 currentMrl = mrl
                 applyVolume()
                 val ok = player.media().play(mrl, ":no-video", ":http-reconnect")
@@ -635,6 +720,7 @@ class PlaybackEngine(
                 publish()
             }.onFailure { e ->
                 buffering = false
+                playbackError = playbackProblem(generateSequence<Throwable>(e) { it.cause }.joinToString(" ") { "${it.javaClass.simpleName} ${it.message.orEmpty()}" })
                 _messages.tryEmit("Не удалось воспроизвести «${t.title}»: ${e.message}")
                 skipAfterError()
             }
@@ -642,8 +728,17 @@ class PlaybackEngine(
     }
 
     private fun onTrackEnded() {
+        val nextTrack = order.getOrNull(pos + 1)?.let { queue.getOrNull(it) }
+        val advanced = fadePlayer?.takeIf { fadeStarted && nextTrack?.key == fadeTrackKey && it.status().isPlaying }?.status()?.time()?.coerceAtLeast(0)
+        cancelCrossfade()
         finishCurrent()
         if (repeat == RepeatMode.ONE) return load(pos)
+        if (advanced != null && nextTrack != null) {
+            restoreIndex = pos + 1
+            restoreTrackKey = nextTrack.key
+            restorePositionMs = advanced
+            return load(pos + 1)
+        }
         advance(userSkip = false)
     }
 
@@ -676,6 +771,7 @@ class PlaybackEngine(
     private fun onTrackError() {
         val t = current ?: return
         if (attempt == 0 && settings.current.fallbackToOthers) return load(pos, skipPrimary = true)
+        playbackError = playbackProblem(null)
         _messages.tryEmit("Не удалось воспроизвести «${t.title}»")
         skipAfterError()
     }
@@ -739,8 +835,11 @@ class PlaybackEngine(
 
     private fun applyVolume() {
         bassMeter?.setVolume(_state.value.volume)
-        player.audio().setVolume(if (bassMeter != null) _state.value.volume else vlcOutputVolume)
+        bassMeter?.setFadeGain(fadeGain)
+        player.audio().setVolume(if (bassMeter != null) _state.value.volume else fadedVolume(vlcOutputVolume, fadeGain))
     }
+
+    private fun fadedVolume(volume: Int, gain: Float): Int = (volume * Math.cbrt(gain.coerceIn(0f, 1f).toDouble())).toInt().coerceIn(0, 100)
 
     /** Когда звук выводит сам VLC, двигаем его громкость небольшими шагами. */
     private suspend fun volumeLoop() {
@@ -751,25 +850,28 @@ class PlaybackEngine(
                 val difference = target - vlcOutputVolume
                 vlcOutputVolume += if (difference > 0) maxOf(1, (difference * 0.18f).toInt())
                     else minOf(-1, (difference * 0.18f).toInt())
-                player.audio().setVolume(vlcOutputVolume)
+                applyVolume()
             }
         }
     }
 
     private suspend fun tickLoop() {
         var last = System.nanoTime()
+        var lastSnapshot = last
         while (true) {
-            delay(250)
+            delay(50)
             val now = System.nanoTime()
             val playing = player.status().isPlaying
             if (!playing && player.status().state() == uk.co.caprica.vlcj.player.base.State.ENDED) {
                 handleTrackEndedIfNeeded()
             }
             if (playing) curPlayedMs += (now - last) / 1_000_000
+            if (playing && now - lastSnapshot >= 5_000_000_000L) { savePlayback(); lastSnapshot = now }
             last = now
             if (playing) {
+                updateCrossfade()
                 // VLC иногда сбрасывает громкость при старте потока — держим нашу
-                val expected = if (bassMeter != null) _state.value.volume else vlcOutputVolume
+                val expected = if (bassMeter != null) _state.value.volume else fadedVolume(vlcOutputVolume, fadeGain)
                 if (player.audio().volume() != expected && player.audio().volume() >= 0) applyVolume()
                 val len = player.status().length()
                 _state.update {
@@ -777,6 +879,7 @@ class PlaybackEngine(
                         positionMs = player.status().time().coerceAtLeast(0),
                         durationMs = if (len > 0) len else it.durationMs,
                         isPlaying = true,
+                        crossfading = fadeStarted,
                     )
                 }
             }
@@ -792,7 +895,9 @@ class PlaybackEngine(
                 track = t,
                 isPlaying = isPlaying,
                 isBuffering = buffering && t != null,
-                positionMs = if (t?.key == it.track?.key) player.status().time().coerceAtLeast(0) else 0,
+                crossfading = fadeStarted,
+                error = playbackError,
+                positionMs = restorePositionMs ?: if (t?.key == it.track?.key) player.status().time().coerceAtLeast(0) else 0,
                 durationMs = if (len > 0) len else (t?.durationMs ?: 0),
                 hasNext = pos + 1 < order.size,
                 waveMode = waveMode,
@@ -808,9 +913,87 @@ class PlaybackEngine(
         }
     }
 
+    private fun savePlayback() {
+        if (pos !in order.indices) return
+        val ordered = order.mapNotNull { queue.getOrNull(it) }
+        if (ordered.size != order.size) return
+        val snapshot = PlaybackSnapshot(ordered, pos, restorePositionMs ?: player.status().time().coerceAtLeast(0),
+            waveMode, radioProvider, waveSource, radioStation, radioTitle, waveBatchId, shuffle, repeat)
+        runCatching { writeAtomic(snapshotFile, snapshotJson.encodeToString(PlaybackSnapshot.serializer(), snapshot)) }
+    }
+
+    private fun updateCrossfade() {
+        val fadeSettings = settings.current
+        val fadeMs = if (fadeSettings.crossfadeEnabled) fadeSettings.fadeSeconds.coerceIn(0, 12) * 1000L else 0L
+        val duration = player.status().length()
+        val remaining = (duration - player.status().time()).coerceAtLeast(0)
+        val next = order.getOrNull(pos + 1)?.let { queue.getOrNull(it) }
+        if (fadeMs == 0L || duration <= fadeMs * 2 || repeat == RepeatMode.ONE || next == null ||
+            (fadeTrackKey != null && fadeTrackKey != next.key)) {
+            cancelCrossfade()
+            return
+        }
+        if (next.durationMs in 1..fadeMs) {
+            cancelCrossfade()
+            fadeFailedKey = next.key
+            return
+        }
+        if (remaining <= fadeMs + 8_000 && fadePlayer == null && fadeJob == null && fadePreparedUrl == null && fadeFailedKey != next.key) {
+            fadeTrackKey = next.key
+            fadeJob = scope.launch {
+                val result = withContext(Dispatchers.IO) { runCatching { resolver.resolve(next) } }
+                if (fadeTrackKey == next.key && order.getOrNull(pos + 1)?.let { queue.getOrNull(it)?.key } == next.key) {
+                    result.onSuccess { stream ->
+                        fadePreparedUrl = stream.url
+                    }.onFailure { fadeFailedKey = next.key; fadeTrackKey = null }
+                }
+                fadeJob = null
+            }
+        }
+        val prepared = fadePreparedUrl
+        if (remaining <= fadeMs && fadePlayer == null && prepared != null && fadeTrackKey == next.key) {
+            fadePreparedUrl = null
+            val preview = vlcFactory.mediaPlayers().newMediaPlayer()
+            fadePlayer = preview
+            preview.audio().setVolume(0)
+            preview.audio().setEqualizer(activeEqualizer)
+            val mrl = playbackMrl(prepared)
+            val started = preview.media().play(mrl, ":no-video", ":http-reconnect")
+            preview.audio().setVolume(0)
+            if (!started) { cancelCrossfade(); fadeFailedKey = next.key }
+        }
+        val preview = fadePlayer
+        if (preview != null && preview.status().state() in setOf(uk.co.caprica.vlcj.player.base.State.ENDED, uk.co.caprica.vlcj.player.base.State.ERROR)) {
+            cancelCrossfade()
+            fadeFailedKey = next.key
+            return
+        }
+        if (preview != null && preview.status().isPlaying) {
+            if (!fadeStarted) { fadeStarted = true; fadeStartRemaining = remaining.coerceAtLeast(1) }
+            val fraction = (1f - remaining.toFloat() / fadeStartRemaining).coerceIn(0f, 1f)
+            fadeGain = 1f - fraction
+            applyVolume()
+            preview.audio().setVolume(fadedVolume(_state.value.volume, fraction))
+        }
+    }
+
+    private fun cancelCrossfade() {
+        fadeJob?.cancel()
+        fadeJob = null
+        fadePlayer?.let { preview -> runCatching { preview.controls().stop() }; runCatching { preview.release() } }
+        fadePlayer = null
+        fadeTrackKey = null
+        fadePreparedUrl = null
+        fadeStarted = false
+        fadeStartRemaining = 0
+        if (fadeGain != 1f) { fadeGain = 1f; applyVolume() }
+    }
+
     /** Останавливает плеер на его же потоке, чтобы опрос позиции не обратился к уже освобождённому VLC. */
     fun release() {
         runBlocking(engineThread) {
+            cancelCrossfade()
+            savePlayback()
             finishCurrent() // дослушанное до закрытия окна тоже попадает в статистику
             scope.coroutineContext[Job]?.cancelAndJoin()
             runCatching { player.controls().stop() }

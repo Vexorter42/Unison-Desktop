@@ -25,6 +25,13 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.musichub.ui.LocalGraph
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Color
@@ -46,7 +53,11 @@ import com.musichub.util.tracksCount
 
 @Composable
 fun TrackListScreen(source: TrackSource, onBack: () -> Unit) {
-    val result by produceState<Result<List<Track>>?>(null, source.id) {
+    val graph = LocalGraph.current
+    val engine = LocalEngine.current
+    val progress by graph.offlineDownloads.progress.collectAsState()
+    var confirmDelete by remember(source.id) { mutableStateOf(false) }
+    val result by produceState<Result<List<Track>>?>(null, source.id, if (source.isOffline) progress?.done else null) {
         value = runCatching { source.load() }
     }
     val tracks = result?.getOrNull().orEmpty()
@@ -59,15 +70,42 @@ fun TrackListScreen(source: TrackSource, onBack: () -> Unit) {
         error = result?.exceptionOrNull()?.message,
         onBack = onBack,
         extraActions = {
-            val delete = source.onDelete ?: return@TrackListLayout
-            val graph = LocalGraph.current
-            GlassButton("Удалить", Icons.Rounded.Delete, onClick = {
-                graph.scope.launch {
-                    delete()
-                    onBack()
-                }
-            })
+            if (!source.isOffline) GlassButton(
+                if (progress != null) "Загрузка ${progress!!.done}/${progress!!.total}" else "Скачать",
+                Icons.Rounded.Download,
+                enabled = tracks.isNotEmpty() && progress == null,
+                onClick = {
+                    graph.scope.launch {
+                        runCatching { graph.offlineDownloads.downloadPlaylist(source.id, source.title, tracks) }
+                            .onSuccess {
+                                engine.notify(if (it.failed == 0) "Скачано треков: ${it.done}"
+                                else "Скачано: ${it.done - it.failed}, не удалось: ${it.failed}. Проверьте сеть; SoundCloud и HLS доступны онлайн.")
+                            }
+                            .onFailure { engine.notify(it.message ?: "Не удалось скачать плейлист") }
+                    }
+                },
+            )
+            source.onDelete?.let { delete ->
+                GlassButton("Удалить", Icons.Rounded.Delete, enabled = progress == null, onClick = {
+                    if (source.isOffline) confirmDelete = true
+                    else graph.scope.launch { delete(); onBack() }
+                })
+            }
         },
+    )
+    if (confirmDelete) AlertDialog(
+        onDismissRequest = { confirmDelete = false },
+        title = { Text("Удалить скачанный плейлист?") },
+        text = { Text("Общие с другими плейлистами треки сохранятся.") },
+        confirmButton = { TextButton(onClick = {
+            confirmDelete = false
+            graph.scope.launch {
+                runCatching { source.onDelete?.invoke() }
+                    .onSuccess { onBack() }
+                    .onFailure { engine.notify(it.message ?: "Не удалось удалить плейлист") }
+            }
+        }) { Text("Удалить") } },
+        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Отмена") } },
     )
 }
 

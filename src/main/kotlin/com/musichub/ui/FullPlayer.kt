@@ -34,11 +34,14 @@ import androidx.compose.material.icons.rounded.ThumbDown
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.musichub.playback.RepeatMode
+import com.musichub.search.artistChoices
 
 @Composable
 fun FullPlayer(onBack: () -> Unit) {
@@ -60,6 +64,7 @@ fun FullPlayer(onBack: () -> Unit) {
         return
     }
     val accent = MaterialTheme.colorScheme.primary
+    var artistDialog by remember { mutableStateOf(false) }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val clickBlocker = remember { MutableInteractionSource() }
 
@@ -104,8 +109,15 @@ fun FullPlayer(onBack: () -> Unit) {
                         color = muted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = 8.dp).clickable {
+                            val names = track.artistChoices()
+                            if (names.size > 1) artistDialog = true else names.firstOrNull()?.let { graph.pendingSearch.value = it }
+                        },
                     )
+                    state.error?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
+                        TextButton(onClick = engine::retryPlayback) { Text("Попробовать снова") }
+                    }
                     Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         SourceBadge(track.source)
                         state.radioTitle?.let { Text(it, fontSize = 12.sp, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis) }
@@ -180,4 +192,5 @@ fun FullPlayer(onBack: () -> Unit) {
             }
         }
     }
+    if (artistDialog) ArtistSearchDialog(track, onPick = { artistDialog = false; graph.pendingSearch.value = it }, onDismiss = { artistDialog = false })
 }

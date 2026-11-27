@@ -27,6 +27,7 @@ class StreamResolver(
     private val vk: VkApi,
     private val youtube: YouTubeApi,
     private val soundcloud: SoundCloudApi,
+    private val offline: (String) -> java.io.File? = { null },
 ) {
     private class Memo(val stream: ResolvedStream, val at: Long)
 
@@ -34,6 +35,7 @@ class StreamResolver(
 
     /** [skipPrimary] — свой сервис уже подвёл (ссылка получена, но не играет), сразу ищем замену. */
     fun resolve(track: Track, skipPrimary: Boolean = false): ResolvedStream {
+        if (!skipPrimary) offline(track.key)?.let { return ResolvedStream(it.toURI().toString(), viaFallback = false) }
         if (!skipPrimary) memo[track.key]?.takeIf { System.currentTimeMillis() - it.at < TTL_MS }?.let { return it.stream }
         val s = settings.current
         val stream = try {

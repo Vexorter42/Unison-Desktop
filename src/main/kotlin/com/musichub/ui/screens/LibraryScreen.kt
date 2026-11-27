@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.ThumbUp
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +54,7 @@ class TrackSource(
     val coverUrl: String?,
     /** Есть у своих плейлистов — кнопка «Удалить» на экране списка. */
     val onDelete: (suspend () -> Unit)? = null,
+    val isOffline: Boolean = false,
     val load: suspend () -> List<Track>,
 )
 
@@ -63,6 +65,8 @@ fun LibraryScreen(open: (TrackSource) -> Unit, openFavorites: () -> Unit, openSe
     val settings by graph.settings.flow.collectAsState()
     val favorites by graph.favorites.items.collectAsState()
     val myPlaylists by graph.myPlaylists.items.collectAsState()
+    val offlineLists by graph.offlineDownloads.playlists.collectAsState()
+    val offlineProgress by graph.offlineDownloads.progress.collectAsState()
     val yaPlaylists by produceState<Result<List<YaPlaylist>>?>(null, settings.yandexUid) {
         value = if (settings.yandexLoggedIn) runCatching { graph.yandex.playlists() } else null
     }
@@ -111,6 +115,24 @@ fun LibraryScreen(open: (TrackSource) -> Unit, openFavorites: () -> Unit, openSe
                             },
                         )
                     }) { Cover(cover, modifier = Modifier.fillMaxSize(), corner = 14.dp) }
+                }
+            }
+        }
+
+        if (offlineLists.isNotEmpty()) {
+            Spacer(Modifier.height(24.dp))
+            SectionTitle("Скачанные плейлисты")
+            offlineProgress?.let { Text("Загрузка: ${it.done}/${it.total} · ${it.title}", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                offlineLists.forEach { playlist ->
+                    val count = graph.offlineDownloads.tracksOf(playlist).size
+                    val size = graph.offlineDownloads.sizeOf(playlist) / 1_048_576
+                    Tile(playlist.title, "${tracksCount(count)} · $size МБ", onClick = {
+                        open(TrackSource("offline:${playlist.id}", playlist.title, "Скачано · $size МБ", playlist.tracks.firstOrNull()?.coverUrl,
+                            onDelete = { graph.offlineDownloads.removePlaylist(playlist.id) }, isOffline = true) {
+                            graph.offlineDownloads.tracksOf(playlist)
+                        })
+                    }) { GeneratedCover(Icons.Rounded.CloudDownload, Color(0xFF2EC4B6), Modifier.fillMaxSize()) }
                 }
             }
         }

@@ -36,6 +36,7 @@ data class BackupSettings(
     val waveLanguage: String = "any",
     val likeTarget: LikeTarget = LikeTarget.UNISON,
     val equalizer: EqualizerConfig? = null,
+    val crossfadeEnabled: Boolean? = null,
 )
 
 @Serializable
@@ -87,6 +88,7 @@ class Backup(
                 s.searchYoutube, s.searchVk, s.fallbackToOthers, s.mixYoutubeInWave, s.mixEvery, s.quality, s.fadeSeconds,
                 s.autoCacheMb, s.waveMood, s.waveDiversity, s.ytProxyEnabled, s.ytProxyType, s.ytProxyHost, s.ytProxyPort,
                 s.liquidGlass, s.palette, s.coverTheme, s.waveSource, s.waveLanguage, s.likeTarget, s.equalizer,
+                crossfadeEnabled = s.crossfadeEnabled,
             ),
             playlists = lists,
             favorites = favorites.items.value.map { BackupFavorite(it.key, it.track.toJson(), it.addedAt, it.sentYandex, it.sentYoutube) },
@@ -122,6 +124,7 @@ class Backup(
                 liquidGlass = b.liquidGlass, palette = b.palette, coverTheme = b.coverTheme,
                 waveSource = b.waveSource, waveLanguage = b.waveLanguage, likeTarget = b.likeTarget,
                 equalizer = b.equalizer ?: it.equalizer,
+                crossfadeEnabled = b.crossfadeEnabled ?: it.crossfadeEnabled,
             )
         }
         RestoreResult(fresh.size, addedFavs, addedStats)

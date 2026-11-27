@@ -8,7 +8,7 @@ plugins {
 }
 
 // Версию поднимает scripts/release.sh; приложение сравнивает её с последним релизом на GitHub
-val appVersion = "0.2.3"
+val appVersion = "0.2.4"
 
 kotlin {
     jvmToolchain(21)
@@ -120,6 +120,31 @@ afterEvaluate {
 }
 
 // Живая проверка без интерфейса: ./gradlew smokeCheck -Pquery="Кино Группа крови"
+tasks.register<JavaExec>("crossfadeCheck") {
+    group = "verification"
+    dependsOn(prepareVlc, "testClasses")
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.CrossfadeCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8")
+}
+
+tasks.register<JavaExec>("crossfadeBassCheck") {
+    group = "verification"
+    dependsOn(prepareVlc, "testClasses")
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.CrossfadeCheckKt")
+    systemProperty("unison.check.bass", "true")
+    jvmArgs("-Dfile.encoding=UTF-8")
+}
+
+tasks.register<JavaExec>("searchLiveCheck") {
+    group = "verification"
+    dependsOn("testClasses")
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.musichub.SearchLiveCheckKt")
+    jvmArgs("-Dfile.encoding=UTF-8")
+}
+
 tasks.register<JavaExec>("smokeCheck") {
     group = "verification"
     classpath = sourceSets["test"].runtimeClasspath
